@@ -32,7 +32,15 @@ Claude Code ships an OS-level Bash sandbox (Seatbelt on macOS) with a domain-fil
    ```
 
    > [!WARNING]
-   > **This user-settings baseline does not hard-block unlisted domains.** `network.allowedDomains` only *pre-allows* domains to skip the approval prompt — it does **not** deny others. An unlisted domain prompts, and in an auto-allowed or agent session (which is how Claude runs these) that prompt resolves to *allow*, so `curl https://example.com` will likely **succeed**, not block. True default-deny egress requires the **strict** posture (`allowManagedDomainsOnly: true`) in *managed* settings — see [enforcement.md](enforcement.md#the-strict-vs-standard-domain-decision). Confirm your real behavior with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny).
+   > **This user-settings baseline does not hard-block unlisted domains.** `network.allowedDomains` only *pre-allows* domains to skip the approval prompt — it does **not** deny others. An unlisted domain prompts, and in an auto-allowed or agent session (which is how Claude runs these) that prompt resolves to *allow*, so `curl https://example.com` will likely **succeed**, not block. True default-deny egress requires the **strict** posture (`allowManagedDomainsOnly: true`), honored **only from managed settings** — do step 4.
+
+4. **Get host-level default-deny (most solo developers want this).** The baseline above is *not* default-deny egress on its own. Deploy the strict managed policy to the system path:
+
+   ```bash
+   ./setup.sh --managed      # sudo-installs configs/claude-code/managed-settings.json (strict egress)
+   ```
+
+   This is the single-machine equivalent of an MDM push — the same policy, applied locally with `sudo`, and root-owned so a hijacked agent can't edit it back. Restart Claude Code and confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny) (`cms.gov` must fail). On a fleet, use MDM instead ([enforcement.md](enforcement.md#single-machine-solo-developer-no-mdm)). Prefer not to touch system files? The [devcontainer](devcontainer.md) / `srt` tiers are default-deny without managed settings.
 
 ## What the baseline config does
 

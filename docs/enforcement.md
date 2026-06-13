@@ -40,7 +40,24 @@ The shipped managed file uses the **strict** posture (`allowManagedDomainsOnly: 
 > [!WARNING]
 > **Don't relax to the standard posture (`allowManagedDomainsOnly: false`) for agent use.** Standard lets a project add domains via a reviewed one-line PR to its `.claude/settings.json` and turns an unlisted domain into a *prompt* instead of a hard block — convenient, but the prompt is a **human** approval step. In an auto-allowed (`autoAllowBashIfSandboxed: true` — our own baseline) or headless/agent session there is no one to answer it, and we have observed unlisted domains (e.g. `cms.gov`, `example.com`) reaching the network with **no prompt and no block** under standard posture. So standard is acceptable **only** where a human answers every egress prompt; for any unattended/agent/fleet use, keep the shipped strict default. Confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny).
 
-Whichever posture you run, make it a recorded decision rather than a drift, and re-run the egress check after deploying. **Note:** `allowManagedDomainsOnly` is honored *only* from managed settings — a solo developer using just `~/.claude/settings.json` cannot reach strict default-deny from user settings alone. Deploy this managed file (MDM, or `sudo` for a single machine) or use the [devcontainer](devcontainer.md) / `srt` tier, which are unconditional default-deny regardless of posture.
+Whichever posture you run, make it a recorded decision rather than a drift, and re-run the egress check after deploying. **Note:** `allowManagedDomainsOnly` is honored *only* from managed settings — a solo developer using just `~/.claude/settings.json` cannot reach strict default-deny from user settings alone. Deploy this managed file (MDM, or `sudo` for a single machine — see below) or use the [devcontainer](devcontainer.md) / `srt` tier, which are unconditional default-deny regardless of posture.
+
+### Single machine (solo developer, no MDM)
+
+This isn't only a fleet concern — **most solo developers want host-level default-deny and have no MDM.** The managed file is still how you get it; just deploy it locally with `sudo` instead of a push. The installer has an opt-in flag:
+
+```bash
+./setup.sh --managed
+```
+
+That sudo-installs [`configs/claude-code/managed-settings.json`](../configs/claude-code/managed-settings.json) to `/Library/Application Support/ClaudeCode/managed-settings.json` (root-owned, mode 644) — the same strict policy MDM would push. By hand it's:
+
+```bash
+sudo mkdir -p "/Library/Application Support/ClaudeCode"
+sudo install -m 644 configs/claude-code/managed-settings.json "/Library/Application Support/ClaudeCode/managed-settings.json"
+```
+
+Restart Claude Code and confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny) (`cms.gov` must fail, `api.github.com` must succeed). Root ownership is the point: a hijacked agent running as you can't edit the policy back. The user-scope baseline from the [5-minute setup](claude-code.md) **cannot** substitute for this — the flag is managed-only. To add a domain later, edit this file's `allowedDomains` (with `sudo`) and restart.
 
 **Known soft spot:** `excludedCommands` (commands that run *unsandboxed*) has no managed-only lock — a developer can append entries in lower scopes. Keep the managed list empty, and treat `excludedCommands` appearing in a repo's `.claude/settings.json` as a code-review flag. Cheap detection: a CI grep over repo settings files for `excludedCommands`, `allowAllUnixSockets`, `enableWeakerNetworkIsolation`.
 
