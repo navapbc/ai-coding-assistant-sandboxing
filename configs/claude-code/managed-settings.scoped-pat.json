@@ -4,10 +4,9 @@
     "failIfUnavailable": true,
     "allowUnsandboxedCommands": false,
     "autoAllowBashIfSandboxed": true,
-    "allowManagedDomainsOnly": false,
-    "allowManagedReadPathsOnly": true,
     "excludedCommands": [],
     "filesystem": {
+      "allowManagedReadPathsOnly": true,
       "denyRead": [
         "~/.ssh",
         "~/.aws",
@@ -23,6 +22,7 @@
       ]
     },
     "network": {
+      "allowManagedDomainsOnly": true,
       "allowedDomains": [
         "api.anthropic.com",
         "claude.ai",
