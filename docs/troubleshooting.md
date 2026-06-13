@@ -4,12 +4,12 @@ Blocked-by-design is the system working; this page is about telling that apart f
 
 ## "A command failed with a network error"
 
-1. **Identify the domain.** The error usually names it (`Could not resolve host`, `403 from proxy`, `connection refused`). In Claude Code, the prompt names the domain when a new one is requested; in the devcontainer, the firewall REJECTs (not DROPs) so tools fail fast with `Network is unreachable`/admin-prohibited rather than hanging.
+1. **Identify the domain.** The error usually names it (`Could not resolve host`, `403 from proxy`, `CONNECT tunnel failed, response 403`, `connection refused`). In Claude Code, the prompt names the domain when a new one is requested; in the devcontainer, the firewall REJECTs (not DROPs) so tools fail fast with `Network is unreachable`/admin-prohibited rather than hanging.
 2. **Is it on the never-list?** Check [network-allowlists.md](network-allowlists.md#never-allowlisted--and-why). Cloud storage domains stay blocked — find another way (usually: that fetch shouldn't happen inside an agent sandbox).
-3. **Legitimate need?** One-line PR:
-   - Project scope: add to `.devcontainer/allowed-domains.txt` or the repo's `.claude/settings.json` → `sandbox.network.allowedDomains`.
-   - Org scope (managed lock active): request the platform team add it to the managed file / MDM push.
-   PR description: what breaks without it, what the domain serves, why it isn't multi-tenant storage.
+3. **Legitimate need? Add it via the manifest.** Edit [`configs/allowed-domains.manifest.json`](../configs/allowed-domains.manifest.json) (add the domain with the right `tiers`), update the matching tier file(s), and run `python3 scripts/check-config-consistency.py` — it prints exactly which files are out of step. *Where* it lands depends on posture (the [shipped default is strict](enforcement.md#the-strict-vs-standard-domain-decision)):
+   - **Strict (`allowManagedDomainsOnly: true`):** project/user `allowedDomains` are **ignored** — the domain must be in the **managed** tier. *Solo machine:* edit `/Library/Application Support/ClaudeCode/managed-settings.json` with `sudo`, then restart (this is why a `.claude/settings.json` edit appears to "do nothing" under strict). *Fleet:* PR it into `configs/claude-code/managed-settings.json` and push via MDM.
+   - **Standard / devcontainer:** add at project scope (`.claude/settings.json`) or `.devcontainer/allowed-domains.txt`.
+   Justify it (what breaks without it, what it serves, why it isn't multi-tenant storage), and never add a [never-listed](network-allowlists.md#never-allowlisted--and-why) domain. Common registries (PyPI, npm, Maven, Gradle, Rust, NuGet, Yarn, Ruby) are already in the default; GitHub Packages and the public Go proxy are [unsupported](network-allowlists.md#per-stack-package-registries) (they require banned cloud storage).
 4. **Devcontainer special case — it worked this morning, fails now:** CDN IP rotation. Rerun `sudo /usr/local/bin/init-firewall.sh` to re-resolve. (Drift fails closed, never open.)
 
 ## "A command failed with Operation not permitted"

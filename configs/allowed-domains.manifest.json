@@ -1,0 +1,83 @@
+{
+  "_comment": [
+    "AUTHORITATIVE allowlist source. Edit a domain's tiers HERE, update the",
+    "per-tier files below to match, then run scripts/check-config-consistency.py",
+    "(it fails on any drift between this manifest and those files).",
+    "",
+    "Checked tiers and their files:",
+    "  claude-user   -> configs/claude-code/settings.user.json (sandbox.network.allowedDomains)",
+    "  claude-managed-> configs/claude-code/managed-settings.json AND managed-settings.scoped-pat.json",
+    "  devcontainer  -> configs/devcontainer/allowed-domains.txt",
+    "",
+    "NOT machine-checked (illustrative only): the Codex permission-profile block in",
+    "configs/codex/config.toml (commented) and the project example configs/claude-code/settings.json.",
+    "",
+    "github.com / api.github.com are intentionally absent from the devcontainer tier:",
+    "init-firewall.sh adds GitHub's published IP ranges from api.github.com/meta instead.",
+    "",
+    "The 'rejected' list records domains we deliberately DO NOT allow and why; the",
+    "consistency check skips this file's forbidden-domain line scan for that reason."
+  ],
+  "tiers": {
+    "claude-user": "configs/claude-code/settings.user.json",
+    "claude-managed": "configs/claude-code/managed-settings.json (+ managed-settings.scoped-pat.json)",
+    "devcontainer": "configs/devcontainer/allowed-domains.txt"
+  },
+  "domains": [
+    { "domain": "api.anthropic.com",                  "purpose": "Anthropic API (Claude Code's own traffic)",     "tiers": ["claude-user", "claude-managed", "devcontainer"] },
+    { "domain": "claude.ai",                           "purpose": "Claude web / login",                            "tiers": ["claude-user", "claude-managed", "devcontainer"] },
+    { "domain": "platform.claude.com",                 "purpose": "Claude platform / console",                     "tiers": ["claude-user", "claude-managed", "devcontainer"] },
+    { "domain": "downloads.claude.ai",                 "purpose": "Claude Code updates / downloads",               "tiers": ["claude-user", "claude-managed", "devcontainer"] },
+
+    { "domain": "github.com",                          "purpose": "Git over HTTPS, web",                           "tiers": ["claude-user", "claude-managed"] },
+    { "domain": "api.github.com",                      "purpose": "GitHub REST/GraphQL API (gh, PR creation)",     "tiers": ["claude-user", "claude-managed"] },
+    { "domain": "raw.githubusercontent.com",           "purpose": "Raw file content",                              "tiers": ["claude-user", "claude-managed", "devcontainer"] },
+    { "domain": "objects.githubusercontent.com",       "purpose": "Release / LFS objects",                         "tiers": ["claude-user", "claude-managed", "devcontainer"] },
+    { "domain": "codeload.github.com",                 "purpose": "Archive / tarball downloads (clone)",           "tiers": ["claude-user", "claude-managed", "devcontainer"] },
+
+    { "domain": "chatgpt.com",                         "purpose": "Codex / ChatGPT",                               "tiers": ["devcontainer"] },
+    { "domain": "auth.openai.com",                     "purpose": "OpenAI auth",                                   "tiers": ["devcontainer"] },
+    { "domain": "api.openai.com",                      "purpose": "OpenAI API",                                    "tiers": ["devcontainer"] },
+    { "domain": "api.githubcopilot.com",               "purpose": "Copilot API",                                   "tiers": ["devcontainer"] },
+    { "domain": "copilot-proxy.githubusercontent.com", "purpose": "Copilot proxy",                                 "tiers": ["devcontainer"] },
+    { "domain": "origin-tracker.githubusercontent.com","purpose": "Copilot",                                       "tiers": ["devcontainer"] },
+    { "domain": "default.exp-tas.com",                 "purpose": "Copilot experimentation",                       "tiers": ["devcontainer"] },
+
+    { "domain": "registry.npmjs.org",                  "purpose": "npm registry",                                  "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "pypi.org",                            "purpose": "PyPI index",                                    "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "files.pythonhosted.org",              "purpose": "PyPI package downloads",                        "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "repo.maven.apache.org",               "purpose": "Maven Central",                                 "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "repo1.maven.org",                     "purpose": "Maven Central (host)",                          "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "services.gradle.org",                 "purpose": "Gradle distributions",                          "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "plugins.gradle.org",                  "purpose": "Gradle plugin portal",                          "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "crates.io",                           "purpose": "crates.io API (Rust)",                          "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "index.crates.io",                     "purpose": "Cargo sparse index (Rust)",                     "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "static.crates.io",                    "purpose": "Cargo .crate downloads (dedicated CDN host, not the *.cloudfront.net wildcard)", "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "api.nuget.org",                       "purpose": "NuGet service index + package content (.NET)", "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "registry.yarnpkg.com",                "purpose": "Yarn Classic registry (Berry uses registry.npmjs.org)", "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "rubygems.org",                        "purpose": "RubyGems API + gem downloads",                  "tiers": ["claude-managed", "devcontainer"] },
+    { "domain": "index.rubygems.org",                  "purpose": "Bundler compact index (Ruby)",                  "tiers": ["claude-managed", "devcontainer"] },
+
+    { "domain": "deb.debian.org",                      "purpose": "Debian apt (container)",                        "tiers": ["devcontainer"] },
+    { "domain": "archive.ubuntu.com",                  "purpose": "Ubuntu apt (container)",                        "tiers": ["devcontainer"] },
+    { "domain": "security.ubuntu.com",                 "purpose": "Ubuntu security apt (container)",               "tiers": ["devcontainer"] },
+    { "domain": "ports.ubuntu.com",                    "purpose": "Ubuntu ports apt (container)",                  "tiers": ["devcontainer"] }
+  ],
+  "rejected": [
+    {
+      "pattern": "*.blob.core.windows.net",
+      "reason": "Multi-tenant Azure Blob storage — an attacker can receive data on a bucket on the same domain. Breaks GitHub Packages (npm/Maven/NuGet/RubyGems) content downloads, which is why GitHub Packages is unsupported under strict egress. Use an org artifact proxy instead.",
+      "breaks": "GitHub Packages"
+    },
+    {
+      "pattern": "storage.googleapis.com",
+      "reason": "Multi-tenant Google Cloud Storage. Go's public module proxy (proxy.golang.org) 302-redirects module zip downloads here, so the public Go proxy is unsupported. Use `go mod vendor` (no egress) or a self-hosted GOPROXY (one allowlisted host).",
+      "breaks": "Go public module proxy"
+    },
+    {
+      "pattern": "*.amazonaws.com, *.cloudfront.net (wildcard), *.googleapis.com, *.azurefd.net, *.r2.dev, pastebin.com, transfer.sh, file.io",
+      "reason": "Multi-tenant cloud storage / paste-transfer endpoints an attacker can receive exfiltrated data on. Never allowlisted; enforced by scripts/check-config-consistency.py. (Dedicated CDN hostnames like static.crates.io are fine — only the shared wildcards are banned.)",
+      "breaks": "n/a (policy floor)"
+    }
+  ]
+}

@@ -39,7 +39,14 @@
         "repo.maven.apache.org",
         "repo1.maven.org",
         "services.gradle.org",
-        "plugins.gradle.org"
+        "plugins.gradle.org",
+        "crates.io",
+        "index.crates.io",
+        "static.crates.io",
+        "api.nuget.org",
+        "registry.yarnpkg.com",
+        "rubygems.org",
+        "index.rubygems.org"
       ],
       "allowUnixSockets": [],
       "allowAllUnixSockets": false,
