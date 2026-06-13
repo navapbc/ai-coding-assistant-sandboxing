@@ -54,7 +54,7 @@ Copilot needs `github.com` auth paths, `api.github.com`, `*.githubcopilot.com`, 
 
 ## Environment variables (no native protection)
 
-Copilot's local sandbox is the weakest of the three on this axis. Seatbelt confines filesystem and network but not the environment, and Copilot adds **no automatic env scrubbing** on either surface — sandboxed terminal commands inherit your full shell environment, including `GITHUB_TOKEN`, `AWS_ACCESS_KEY_ID`, and the like.
+Copilot's local sandbox is the **weakest of the three on this axis**: [Codex](codex.md#environment-variables-dont-trust-the-defaults) (with our `inherit = "core"`) is the strictest — a true deny-by-default allowlist — Claude Code's scrub is a partial fixed heuristic, and Copilot scrubs nothing. Seatbelt confines filesystem and network but not the environment, and Copilot adds **no automatic env scrubbing** on either surface — sandboxed terminal commands inherit your full shell environment, including `GITHUB_TOKEN`, `AWS_ACCESS_KEY_ID`, and the like.
 
 - **VS Code agent mode:** **no** env-scrubbing setting exists. The sandbox denies *file* reads under `$HOME` (so `~/.aws/credentials` on disk is protected), but does nothing about the same secret exported as an env var.
 - **Copilot CLI:** has an opt-in `--secret-env-vars` flag. By default it only **redacts** `GITHUB_TOKEN`/`COPILOT_GITHUB_TOKEN` *values in its output/logs* — which does not stop a command from reading them. Whether naming additional vars also *strips* them from the command environment (vs. log-redaction only) is documented **inconsistently** by GitHub's own sources, so don't rely on it without testing your installed version.

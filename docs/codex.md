@@ -54,6 +54,30 @@ Codex is, however, the **only** one of the three tools with a native deny-by-def
 - These defaults are **verified against the [openai/codex](https://github.com/openai/codex) source**, not the docs — the official config-reference documents the fields but does not publish their default values, and several third-party blogs state them incorrectly (they claim the name filter is on by default; it is not).
 - The durable fix is still to **not export long-lived secrets into your shell** in the first place.
 
+This makes Codex's env posture the **strictest of the three tools**: `inherit = "core"` is a true deny-by-default allowlist, whereas Claude Code's [`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`](claude-code.md) is a partial, fixed heuristic and [Copilot](copilot.md#environment-variables-no-native-protection) scrubs nothing.
+
+### If the agent itself must run authenticated git inside the sandbox
+
+The simplest answer is **don't**: push from your unsandboxed terminal (the Tier-1 pattern in [network-allowlists.md](network-allowlists.md#git-credentials-https--scoped-pats)), so the Codex agent never needs a token and the `inherit = "core"` default stands.
+
+If a workflow genuinely needs the *agent* to run `git push`/`gh` inside the sandbox, **don't relax the global policy** to let a token through — a global `exclude` denylist leaks every secret you forget to list. Instead, define a **dedicated profile** that admits *only* the GitHub token via an explicit allowlist, and inject that token ephemerally at launch:
+
+```toml
+[profiles.agent-git.shell_environment_policy]
+inherit = "all"
+# include_only keeps ONLY these — an allowlist, so unlisted vars (AWS_*, GOOGLE_*, …)
+# are dropped. The failure mode is closed, unlike an `exclude` denylist.
+include_only = ["PATH", "HOME", "SHELL", "TMPDIR", "TMP", "TEMP", "LANG", "LC_*", "LOGNAME", "USER", "GH_TOKEN"]
+```
+
+```bash
+# the PAT lives in 1Password/Keychain, not your shell rc — inject it only for this run:
+GH_TOKEN="$(gh auth token)" codex --profile agent-git
+# (see the config-reference link below for how Codex selects profiles)
+```
+
+Use `include_only` (an allowlist — unlisted vars are dropped, the safe failure mode), never an `exclude` denylist. Keep the PAT **repo-scoped and short-lived** so a leak can only push where you already work ([scoped-PAT guidance](network-allowlists.md#git-credentials-https--scoped-pats)). Every other session keeps the deny-by-default `inherit = "core"`.
+
 ## For the platform team
 
 [`configs/codex/requirements.toml`](../configs/codex/requirements.toml) makes the policy non-overridable: `allowed_sandbox_modes` excludes `danger-full-access`, approval policy `never` is forbidden, web search and browser use are disabled. Deploy via MDM (`com.openai.codex` → `requirements_toml_base64`) or `/etc/codex/requirements.toml` — details in [enforcement.md](enforcement.md). Project-level `.codex/config.toml` files load only for trusted projects and cannot change model endpoints or providers.
