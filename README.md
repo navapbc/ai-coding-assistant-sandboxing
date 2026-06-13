@@ -36,11 +36,13 @@ Two caveats worth knowing: Apple has **deprecated `sandbox-exec`** (still shippe
 
 ## Quick install (one prompt + restart)
 
-From inside Claude Code, Codex, or Copilot CLI — or an agent in your IDE — paste this prompt:
+From inside Claude Code or Codex — or any coding agent with a terminal — paste this prompt:
 
 > Clone `navapbc/ai-coding-assistant-sandboxing` with `gh repo clone`, then run `./setup.sh` from the checkout and tell me which tools to restart.
 
 The agent clones the repo, runs the installer, and reports back; you restart the tool and you're done. `setup.sh` detects which tools you have, installs the user-level baselines from `configs/`, and prints what to restart. Run `./setup.sh --dry-run` first to preview, and re-run after a `git pull` to update.
+
+The installer configures **Claude Code and Codex**. **Copilot is not file-configured** — there's nothing safe to write unattended, so `setup.sh` only prints guidance. Enable Copilot's sandbox separately: `/sandbox enable` per session in the CLI, or the VS Code terminal-sandbox setting — see [Manual setup](#manual-setup-per-tool) and [copilot.md](docs/copilot.md).
 
 > [!IMPORTANT]
 > **That baseline is not default-deny egress on its own** — `allowedDomains` in user settings only *pre-allows* (skips prompts); an auto-allowed agent can still reach unlisted domains. For **host-level default-deny** (what most solo devs want), run `./setup.sh --managed` **yourself in a terminal** afterward — it deploys the strict managed policy (Claude Code + Codex) and needs `sudo`, so the agent above can't do it. Verify with the [egress check](docs/troubleshooting.md#verify-your-egress-is-actually-default-deny) (`cms.gov` must fail). Details: [Single machine](docs/enforcement.md#single-machine-solo-developer-no-mdm). Prefer not to touch system files? The [devcontainer](docs/devcontainer.md) tier is default-deny without it.
