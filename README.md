@@ -3,7 +3,7 @@
 > [!WARNING]
 > **Experimental — work in progress.** This repo is an early, evolving reference, not a finished standard. The tools it covers (especially Copilot's local sandbox and Docker Sandboxes) are themselves new and changing, so configs and guidance here may be incomplete or out of date — **verify against the linked vendor docs before relying on anything**, and treat the configs as starting points to review, not drop-in guarantees. Expect breaking changes. Feedback and PRs welcome.
 
-**Status:** experimental · last reviewed 2026-06-12
+**Status:** experimental · last reviewed 2026-06-13
 
 Guides and runnable configurations for using **Claude Code**, **OpenAI Codex**, and **GitHub Copilot** safely on developer Macs in an environment that handles sensitive beneficiary data. The goal: an agent that is compromised by prompt injection **cannot read host secrets and cannot exfiltrate data** — while staying pleasant enough to use that nobody routes around it.
 
@@ -20,6 +20,9 @@ We do not try to predict what commands an agent will run. We **contain** what an
 | **3 — Org enforcement** | MDM-deployed managed settings that developers can't override | Fleet-wide | [enforcement](docs/enforcement.md) |
 
 Tiers compose: a developer on Tier 1 today is protected; Tier 3 makes sure it stays on; Tier 2 covers the tools and IDE surfaces that have no built-in story.
+
+> [!WARNING]
+> **Secrets in your shell environment defeat the sandbox.** The OS sandboxes confine the filesystem and network but **not environment variables** — a `GITHUB_TOKEN` (or AWS key) exported in your `~/.zshrc` is inherited by every command the agent runs, sandbox or not. Don't put tokens in dotfiles or the environment. Use a repo-scoped, least-privilege credential kept in a credential store: **[Git credentials guide](docs/git-credentials.md)**.
 
 ## Platform support
 
@@ -66,6 +69,7 @@ Two design notes so this stays robust:
 | [universal-sandbox-srt.md](docs/universal-sandbox-srt.md) | Wrapping *any* CLI in a Seatbelt + filtering-proxy sandbox (`srt`), plus our raw `sandbox-exec` fallback |
 | [devcontainer.md](docs/devcontainer.md) | Running agents in a container with a default-deny egress firewall |
 | [docker-sandbox.md](docs/docker-sandbox.md) | Docker Sandboxes (`sbx`) — microVM + hostname-filtering proxy, for the Docker-licensed subset |
+| [git-credentials.md](docs/git-credentials.md) | Storing least-privilege GitHub tokens on macOS (1Password / Keychain) — and keeping them out of your shell environment |
 | [network-allowlists.md](docs/network-allowlists.md) | The full domain reference: what's allowed, what's never allowed, and why |
 | [enforcement.md](docs/enforcement.md) | Platform team: MDM, managed settings, config precedence, defense-in-depth layering |
 | [policy-matrix.md](docs/policy-matrix.md) | The one-page approved / not-approved matrix per tool and surface |
