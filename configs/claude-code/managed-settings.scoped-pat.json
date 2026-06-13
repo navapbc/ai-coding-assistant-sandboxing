@@ -1,0 +1,78 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "autoAllowBashIfSandboxed": true,
+    "allowManagedDomainsOnly": false,
+    "allowManagedReadPathsOnly": true,
+    "excludedCommands": [],
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.azure",
+        "~/.config/gcloud",
+        "~/.kube",
+        "~/.gnupg",
+        "~/.netrc",
+        "~/.npmrc",
+        "~/.pypirc",
+        "~/.docker",
+        "~/Library/Keychains"
+      ]
+    },
+    "network": {
+      "allowedDomains": [
+        "api.anthropic.com",
+        "claude.ai",
+        "platform.claude.com",
+        "downloads.claude.ai",
+        "raw.githubusercontent.com",
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com",
+        "registry.npmjs.org",
+        "pypi.org",
+        "files.pythonhosted.org",
+        "repo.maven.apache.org",
+        "repo1.maven.org",
+        "services.gradle.org",
+        "plugins.gradle.org"
+      ],
+      "allowUnixSockets": [],
+      "allowAllUnixSockets": false,
+      "allowLocalBinding": false
+    },
+    "enableWeakerNestedSandbox": false
+  },
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "ask": [
+      "Bash(gh pr create *)",
+      "Bash(gh repo *)",
+      "Bash(gh release *)",
+      "Bash(gh gist *)",
+      "Bash(npm publish *)",
+      "Bash(docker *)"
+    ],
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.netrc)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1",
+    "DISABLE_AUTOUPDATER": "1"
+  }
+}

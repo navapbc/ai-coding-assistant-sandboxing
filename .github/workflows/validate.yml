@@ -1,0 +1,54 @@
+name: validate
+
+# Keeps the configs and docs honest: shell scripts parse, JSON/TOML is valid,
+# the installer's merge logic works, and every intra-doc link/anchor resolves.
+# (This does NOT verify the configs against the real tools — that needs macOS
+#  runners with each assistant installed; see the README's experimental note.)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Shell syntax (bash -n)
+        run: find . -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+      - name: ShellCheck (errors only)
+        run: find . -name '*.sh' -print0 | xargs -0 shellcheck -S error
+
+      - name: Validate JSON
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' f; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f"
+            echo "ok  $f"
+          done < <(find . -name '*.json' -print0)
+
+      - name: Validate TOML
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' f; do
+            python3 -c "import tomllib,sys; tomllib.load(open(sys.argv[1],'rb'))" "$f"
+            echo "ok  $f"
+          done < <(find . -name '*.toml' -print0)
+
+      - name: Validate doc links and anchors
+        run: python3 scripts/validate-docs.py
+
+      - name: Check config consistency (secret lists + forbidden domains)
+        run: python3 scripts/check-config-consistency.py
+
+      - name: Test setup.sh JSON deep-merge
+        run: bash scripts/test-merge.sh
+
+      - name: Smoke-test setup.sh (no tools present -> clean no-op)
+        run: bash setup.sh --dry-run

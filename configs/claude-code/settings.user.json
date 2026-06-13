@@ -1,0 +1,56 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.azure",
+        "~/.config/gcloud",
+        "~/.kube",
+        "~/.gnupg",
+        "~/.netrc",
+        "~/.npmrc",
+        "~/.pypirc",
+        "~/.docker",
+        "~/Library/Keychains"
+      ]
+    },
+    "network": {
+      "allowedDomains": [
+        "api.anthropic.com",
+        "claude.ai",
+        "platform.claude.com",
+        "downloads.claude.ai",
+        "raw.githubusercontent.com",
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com"
+      ],
+      "allowUnixSockets": [],
+      "allowAllUnixSockets": false,
+      "allowLocalBinding": false
+    }
+  },
+  "permissions": {
+    "ask": [
+      "Bash(git push *)",
+      "Bash(gh pr create *)",
+      "Bash(gh repo *)",
+      "Bash(npm publish *)"
+    ],
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/gcloud/**)",
+      "Read(~/.netrc)"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "1"
+  }
+}

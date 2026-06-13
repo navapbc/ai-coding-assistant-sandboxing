@@ -1,0 +1,12 @@
+# CODEOWNERS — currently inactive (no rules), so no review is auto-requested.
+#
+# The allowlists, sandbox configs, and policy matrix are security controls, and
+# the docs assume a platform/security reviewer for allowlist edits. When a
+# GitHub team exists, uncomment a rule below to enforce that — e.g.:
+#
+#   *                      @navapbc/platform-security
+#   /configs/**            @navapbc/platform-security
+#   /docs/network-allowlists.md  @navapbc/platform-security
+#
+# Note: "Require review from Code Owners" in branch protection only takes effect
+# once at least one matching rule above is uncommented.

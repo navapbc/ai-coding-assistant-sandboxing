@@ -1,0 +1,45 @@
+# allowed-domains.txt — the ONLY egress the devcontainer firewall permits.
+# Default-deny: anything not listed here is blocked. One domain per line;
+# lines starting with # are ignored. Changes to this file are code-reviewed.
+#
+# NEVER add cloud-provider storage domains (*.amazonaws.com, *.googleapis.com,
+# *.blob.core.windows.net, *.cloudfront.net) or paste/transfer sites — they are
+# multi-tenant endpoints an attacker can receive data on.
+#
+# GitHub web/api/git ranges are added separately from api.github.com/meta by
+# init-firewall.sh, so github.com itself does not need to be listed.
+
+# --- AI assistant APIs ---
+api.anthropic.com
+claude.ai
+platform.claude.com
+downloads.claude.ai
+chatgpt.com
+auth.openai.com
+api.openai.com
+# Copilot (hostname filtering can't expand *.githubcopilot.com; these are the
+# concrete hosts the CLI uses — extend if your Copilot plan uses another)
+api.githubcopilot.com
+copilot-proxy.githubusercontent.com
+origin-tracker.githubusercontent.com
+default.exp-tas.com
+
+# --- GitHub content hosts not covered by api.github.com/meta ranges ---
+raw.githubusercontent.com
+objects.githubusercontent.com
+codeload.github.com
+
+# --- package registries (per-stack; remove the stacks you don't use) ---
+registry.npmjs.org
+pypi.org
+files.pythonhosted.org
+repo.maven.apache.org
+repo1.maven.org
+services.gradle.org
+plugins.gradle.org
+
+# --- OS packages inside the container (apt) ---
+deb.debian.org
+archive.ubuntu.com
+security.ubuntu.com
+ports.ubuntu.com

@@ -1,0 +1,53 @@
+# Codex CLI configuration — place at ~/.codex/config.toml
+#
+# Baseline posture: workspace-write sandbox, network OFF, approvals on request.
+# Reference: https://developers.openai.com/codex/config-reference
+#            https://developers.openai.com/codex/agent-approvals-security
+#
+# NOTE (macOS): verify network isolation on your installed version. Older
+# releases had a bug where `network_access = true` was silently ignored by the
+# Seatbelt profile (https://github.com/openai/codex/issues/10390). Since our
+# baseline keeps network_access = false, the bug does not weaken this config —
+# but do not assume enabling it works without testing.
+
+sandbox_mode = "workspace-write"   # never "danger-full-access"
+approval_policy = "on-request"
+
+[sandbox_workspace_write]
+# Default-deny egress: shell commands run by Codex get NO network access.
+# Codex itself (the agent process) still reaches chatgpt.com / api.openai.com.
+network_access = false
+# Keep system temp dirs writable (default); workspace + temp are the only
+# writable roots. Add roots sparingly, e.g. a language shim directory:
+# writable_roots = ["/Users/YOU/.pyenv/shims"]
+
+# ---------------------------------------------------------------------------
+# ALTERNATIVE: permission profiles (newer system; replaces sandbox_mode —
+# configure ONE of the two, never both). Profiles add domain-level network
+# allowlisting enforced through Codex's proxy. Uncomment to use.
+# Reference: https://developers.openai.com/codex/permissions
+# ---------------------------------------------------------------------------
+# default_permissions = "agency-restricted"
+#
+# [permissions.agency-restricted]
+# extends = ":workspace"
+#
+# [permissions.agency-restricted.filesystem.":workspace_roots"]
+# "." = "write"
+# "**/.env" = "deny"
+# "**/.env.*" = "deny"
+#
+# [permissions.agency-restricted.network]
+# enabled = true
+#
+# [permissions.agency-restricted.network.domains]
+# "github.com" = "allow"
+# "api.github.com" = "allow"
+# "codeload.github.com" = "allow"
+# "objects.githubusercontent.com" = "allow"
+# "raw.githubusercontent.com" = "allow"
+# "registry.npmjs.org" = "allow"
+# "pypi.org" = "allow"
+# "files.pythonhosted.org" = "allow"
+# Never add wildcards for cloud storage providers (*.amazonaws.com,
+# *.googleapis.com, *.blob.core.windows.net) — multi-tenant exfil endpoints.

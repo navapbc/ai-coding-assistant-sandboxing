@@ -1,0 +1,13 @@
+{
+  "chat.tools.terminal.sandbox.enabled": true,
+  "chat.tools.edits.autoApprove": {
+    "**/.env": false,
+    "**/.env.*": false,
+    "**/secrets/**": false,
+    "**/*.pem": false,
+    "**/*.key": false,
+    "**/.claude/settings*.json": false,
+    "**/.codex/**": false,
+    "**/.github/copilot-instructions.md": false
+  }
+}

@@ -1,0 +1,21 @@
+# Codex enforced requirements — users CANNOT override these.
+#
+# Deploy via ONE of (in precedence order):
+#   1. Cloud-managed config (ChatGPT Business/Enterprise admin console)
+#   2. MDM: macOS preference domain `com.openai.codex`,
+#      key `requirements_toml_base64` = base64 of this file
+#   3. File: /etc/codex/requirements.toml
+#
+# Reference: https://developers.openai.com/codex/enterprise/managed-configuration
+
+# danger-full-access is forbidden everywhere, for everyone.
+allowed_sandbox_modes = ["read-only", "workspace-write"]
+
+# "never" (no approvals) is forbidden; humans stay in the loop.
+allowed_approval_policies = ["untrusted", "on-request"]
+
+# Agent-initiated web search is an uncontrolled egress channel — disable it.
+allowed_web_search_modes = ["disabled"]
+
+[features]
+browser_use = false

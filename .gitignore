@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Python (scripts/, .merge-json.py)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# setup.sh backups / temp merge output
+*.bak.*
+
+# Claude Code local (personal, may carry secrets) — templates in configs/ stay tracked
+.claude/settings.local.json
