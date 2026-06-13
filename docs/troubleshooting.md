@@ -25,10 +25,25 @@ That's Seatbelt denying a filesystem operation.
 |------|---------|----------------------|
 | `docker` | Fails under any Seatbelt sandbox | Don't `excludedCommands` it (that runs it **unsandboxed**, with the full Docker-socket blast radius). Let it hit the ask-prompt for one-offs; move container-heavy work to the [devcontainer](devcontainer.md) tier |
 | `jest` (watchman) | Hangs | `jest --no-watchman` |
-| Go-based CLIs (`gh`, `terraform`, `gcloud`) | TLS verification failure on macOS, mainly with MITM proxies | If using a custom CA/MITM proxy: `enableWeakerNetworkIsolation: true` (Claude Code). Otherwise prefer the ask-prompt fallback over `excludedCommands` |
+| Go-based CLIs (`gh`, `terraform`, `gcloud`) | TLS verification failure on macOS (`x509: OSStatus -26276`) — the sandbox's own domain-filtering proxy is a MITM whose CA Go's TLS stack won't trust, so this hits even without a *corporate* proxy | For GitHub API work (e.g. opening a PR), use `curl` against the REST API — it uses the macOS system trust store and succeeds where `gh` fails ([recipe below](#opening-a-pr-or-other-github-api-work-when-gh-fails-tls)). For a custom corporate CA/MITM proxy: `enableWeakerNetworkIsolation: true` (Claude Code). Prefer either over `excludedCommands` |
 | Windows binaries under WSL2 | Blocked Unix-socket handoff | Out of scope for our macOS fleet; see Claude Code docs if relevant |
 
 `excludedCommands` is always the last resort: every entry is a hole in the sandbox wall, it has no managed-scope lock, and it should appear in code review as a red flag.
+
+### Opening a PR (or other GitHub API work) when `gh` fails TLS
+
+`gh pr create` fails under the sandbox with `Post "https://api.github.com/graphql": tls: failed to verify certificate: x509: OSStatus -26276`. This is the Go-CLI TLS issue above: `gh` won't trust the domain-filtering proxy's CA. You don't need to weaken isolation or exclude the command — `curl` uses the macOS system trust store and reaches the *same* allowlisted host (`api.github.com`). So `git push` as normal, then create the PR through the REST API:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  https://api.github.com/repos/<owner>/<repo>/pulls \
+  -d '{"title":"…","head":"<branch>","base":"main","body":"…"}'
+```
+
+For multi-line/Markdown bodies, build the JSON with `python3 -c 'import json,sys; ...'` into a file and pass `--data @file.json` rather than fighting shell quoting. Use a **repo-scoped fine-grained PAT** for `$TOKEN` ([git-credentials guidance](network-allowlists.md#git-credentials-https--scoped-pats)) — don't reach for a broad, long-lived token, and note this still routes through the same allowlisted GitHub host, so it's no new egress surface.
 
 ## Verifying your sandbox
 

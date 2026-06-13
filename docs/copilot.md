@@ -52,6 +52,16 @@ Copilot agent mode in IntelliJ executes on your host with your privileges and of
 
 Copilot needs `github.com` auth paths, `api.github.com`, `*.githubcopilot.com`, `copilot-proxy.githubusercontent.com`, `origin-tracker.githubusercontent.com`, and `default.exp-tas.com`. We deliberately **exclude** the Azure-hosted usage-report endpoints in GitHub's published list (`usagereports*.blob.core.windows.net`, `copilot-reports-*.b01.azurefd.net`) — they violate the no-cloud-storage rule and are only used by admin reporting. Full tables with sources: [network-allowlists.md](network-allowlists.md).
 
+## Environment variables (no native protection)
+
+Copilot's local sandbox is the weakest of the three on this axis. Seatbelt confines filesystem and network but not the environment, and Copilot adds **no automatic env scrubbing** on either surface — sandboxed terminal commands inherit your full shell environment, including `GITHUB_TOKEN`, `AWS_ACCESS_KEY_ID`, and the like.
+
+- **VS Code agent mode:** **no** env-scrubbing setting exists. The sandbox denies *file* reads under `$HOME` (so `~/.aws/credentials` on disk is protected), but does nothing about the same secret exported as an env var.
+- **Copilot CLI:** has an opt-in `--secret-env-vars` flag. By default it only **redacts** `GITHUB_TOKEN`/`COPILOT_GITHUB_TOKEN` *values in its output/logs* — which does not stop a command from reading them. Whether naming additional vars also *strips* them from the command environment (vs. log-redaction only) is documented **inconsistently** by GitHub's own sources, so don't rely on it without testing your installed version.
+- **Cloud-provider creds (AWS/GCP/Azure):** not protected by default on either surface.
+
+Net: treat the Copilot local sandbox as **not** protecting secrets held in environment variables. This reinforces the devcontainer recommendation above — and, as everywhere, the durable fix is to not export long-lived secrets into your shell.
+
 ## References (source of truth)
 
 - Local/cloud sandboxes changelog: https://github.blog/changelog/2026-06-02-cloud-and-local-sandboxes-for-github-copilot-now-in-public-preview/

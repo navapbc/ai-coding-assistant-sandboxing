@@ -44,6 +44,16 @@ Codex's newer **permission profiles** replace `sandbox_mode` (configure one syst
 
 Like Claude Code, Codex sandboxes **the commands it runs, not itself**: the CLI process and any MCP servers it spawns run with your user's privileges. Protected-path enforcement, workspace scoping, and the network switch apply to agent-executed shell commands and their children. For whole-process containment, use the [devcontainer](devcontainer.md).
 
+## Environment variables (don't trust the defaults)
+
+Seatbelt confines filesystem and network, **not the environment**. By default Codex passes your **entire shell environment** through to every sandboxed command — `inherit = "all"` with the built-in `*KEY*`/`*SECRET*`/`*TOKEN*` name filter **off** (`ignore_default_excludes = true`). So `GITHUB_TOKEN`, `AWS_ACCESS_KEY_ID`, and anything else you've exported are readable by a hijacked command, sandbox or not.
+
+Codex is, however, the **only** one of the three tools with a native deny-by-default env control: the `[shell_environment_policy]` block. Our baseline sets `inherit = "core"` (rebuild a minimal allowlist — `PATH`, `SHELL`, `TMPDIR`, `HOME`, `LANG`, `USER`, …, the same posture as the seatbelt wrapper's `env -i`) plus `ignore_default_excludes = false` as a belt-and-suspenders name filter. Caveats:
+
+- The name filter is **pattern-based**: it catches `GITHUB_TOKEN`/`GH_TOKEN`/`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` but misses creds without `KEY`/`SECRET`/`TOKEN` in the name (e.g. `GOOGLE_APPLICATION_CREDENTIALS`). `inherit = "core"` is what actually closes that gap.
+- These defaults are **verified against the [openai/codex](https://github.com/openai/codex) source**, not the docs — the official config-reference documents the fields but does not publish their default values, and several third-party blogs state them incorrectly (they claim the name filter is on by default; it is not).
+- The durable fix is still to **not export long-lived secrets into your shell** in the first place.
+
 ## For the platform team
 
 [`configs/codex/requirements.toml`](../configs/codex/requirements.toml) makes the policy non-overridable: `allowed_sandbox_modes` excludes `danger-full-access`, approval policy `never` is forbidden, web search and browser use are disabled. Deploy via MDM (`com.openai.codex` → `requirements_toml_base64`) or `/etc/codex/requirements.toml` — details in [enforcement.md](enforcement.md). Project-level `.codex/config.toml` files load only for trusted projects and cannot change model endpoints or providers.
