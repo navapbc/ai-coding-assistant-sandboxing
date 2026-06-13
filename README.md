@@ -42,6 +42,9 @@ From inside Claude Code, Codex, or Copilot CLI — or an agent in your IDE — p
 
 The agent clones the repo, runs the installer, and reports back; you restart the tool and you're done. `setup.sh` detects which tools you have, installs the user-level baselines from `configs/`, and prints what to restart. Run `./setup.sh --dry-run` first to preview, and re-run after a `git pull` to update.
 
+> [!IMPORTANT]
+> **That baseline is not default-deny egress on its own** — `allowedDomains` in user settings only *pre-allows* (skips prompts); an auto-allowed agent can still reach unlisted domains. For **host-level default-deny** (what most solo devs want), run `./setup.sh --managed` **yourself in a terminal** afterward — it deploys the strict managed policy (Claude Code + Codex) and needs `sudo`, so the agent above can't do it. Verify with the [egress check](docs/troubleshooting.md#verify-your-egress-is-actually-default-deny) (`cms.gov` must fail). Details: [Single machine](docs/enforcement.md#single-machine-solo-developer-no-mdm). Prefer not to touch system files? The [devcontainer](docs/devcontainer.md) tier is default-deny without it.
+
 It never destroys an existing config. For Claude Code's JSON it **deep-merges** the baseline into your file (our security keys win on conflicts, lists are unioned, your other settings are preserved), shows a **diff**, and **asks before writing — defaulting to no**, backing up the original first; `--yes` applies without prompting. For Codex's TOML there's no safe automatic merge, so an existing config is **left completely untouched** — the installer drops a `config.toml.sandbox-baseline` sidecar and shows which keys to add. Real Codex enforcement comes from MDM-deployed `requirements.toml` ([enforcement](docs/enforcement.md)), not from editing each developer's `config.toml`.
 
 Two design notes so this stays robust:
@@ -51,7 +54,7 @@ Two design notes so this stays robust:
 
 ## Manual setup (per tool)
 
-- **Claude Code** → run `/sandbox`, then copy [`configs/claude-code/settings.user.json`](configs/claude-code/settings.user.json) to `~/.claude/settings.json`. Done in 5 minutes. [Guide](docs/claude-code.md)
+- **Claude Code** → run `/sandbox`, then copy [`configs/claude-code/settings.user.json`](configs/claude-code/settings.user.json) to `~/.claude/settings.json`. Done in 5 minutes. **For host-level default-deny egress (most solo devs want this), also run `./setup.sh --managed`** — the user baseline alone is *not* default-deny ([why & how](docs/enforcement.md#single-machine-solo-developer-no-mdm)). [Guide](docs/claude-code.md)
 - **Codex CLI** → copy [`configs/codex/config.toml`](configs/codex/config.toml) to `~/.codex/config.toml`. [Guide](docs/codex.md)
 - **Copilot CLI** → run `/sandbox enable` in a session (public preview); for VS Code set [`configs/copilot/vscode-settings.json`](configs/copilot/vscode-settings.json). **Copilot agent mode in JetBrains has no sandbox — use the [devcontainer](docs/devcontainer.md).** [Guide](docs/copilot.md)
 - **Any tool, strongest isolation** → the [devcontainer](docs/devcontainer.md) in [`configs/devcontainer/`](configs/devcontainer/), or — if you have Docker — [Docker Sandboxes](docs/docker-sandbox.md) (`sbx`), the preferred Tier 2 for that subset.

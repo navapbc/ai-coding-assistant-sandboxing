@@ -36,7 +36,7 @@ Every configuration in this repo enforces both sides. When you widen one side (a
 |---------|----------|-------------|
 | Workspace-scoped writes | Commands write only to the project dir + session temp | macOS Seatbelt (kernel) |
 | Secret-path read denial | `~/.ssh`, `~/.aws`, etc. unreadable even though broad read is allowed | Seatbelt / tool config (`denyRead`) |
-| Default-deny egress | Only allowlisted domains reachable; everything else refused | Filtering proxy outside the sandbox (built-in tools, `srt`) or iptables (devcontainer) |
+| Default-deny egress | Only allowlisted domains reachable — **but for Claude Code this holds only under the strict posture** (`allowManagedDomainsOnly: true`) or when a human denies the prompt; under the standard posture an auto-allowed/agent session reaches *unlisted* domains unprompted ([decision](enforcement.md#the-strict-vs-standard-domain-decision)). The devcontainer (iptables) and `srt` proxy are unconditional default-deny. | Filtering proxy outside the sandbox (built-in tools, `srt`) or iptables (devcontainer) |
 | Sanitized environment | Secrets in your shell env don't reach agent subprocesses | `env -i` in our wrapper (deny-by-default allowlist — fully enforces this); `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is best-effort only — it strips Anthropic/cloud-provider creds but **not** GitHub PATs (`GITHUB_TOKEN`/`GH_TOKEN`) |
 | Human-approval ask-list | `git push`, `gh pr create`, `npm publish`, `docker` prompt before running | Tool permission rules |
 

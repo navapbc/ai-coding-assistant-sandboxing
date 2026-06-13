@@ -27,13 +27,42 @@ via MDM (Jamf/Kandji/Intune file deployment), root-owned, mode 644. What it enfo
 |-----|--------|
 | `sandbox.enabled` + `failIfUnavailable` | Sandbox always on; Claude Code refuses to start if it can't initialize (security gate, not a warning) |
 | `allowUnsandboxedCommands: false` | The retry-outside-the-sandbox escape hatch is dead |
-| `allowManagedDomainsOnly: false` (shipped default) | Standard posture: the managed `allowedDomains` are the baseline, and projects can *add* domains via reviewed PRs; anything still unlisted **prompts** the developer rather than silently blocking. Set to `true` to harden into the strict posture (see below) |
+| `allowManagedDomainsOnly: true` (shipped default) | **Strict posture:** only the managed `allowedDomains` count, and an unlisted domain **hard-blocks with no prompt** — the only posture that delivers default-deny for an unattended/agent session. Adding a domain is an MDM edit to this file. Set to `false` for the standard posture (per-project PRs + prompts), acceptable only for human-interactive use (see below) |
 | `allowManagedReadPathsOnly: true` | Locks filesystem `allowRead` to managed entries — developers cannot widen read access past the secret-path denials. This stays on; it is the secret-path floor |
 | `permissions.disableBypassPermissionsMode: "disable"` | `--dangerously-skip-permissions` is unavailable on the host |
 | `permissions.ask` (git push, gh pr/repo/release/gist, npm publish, docker) | The outward-acting ask-list. Permission rules merge across scopes (union), so a lower scope can't *remove* an entry — relaxing any of these is a managed-file edit (see [the push relaxation](#relaxing-the-git-push-prompt-after-scoped-pats)) |
 | `env`: `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, `DISABLE_AUTOUPDATER`, telemetry off | Hygiene baked in; updates flow through MDM, not self-update |
 
-**The strict-vs-standard domain decision.** The shipped managed file uses the **standard** posture (`allowManagedDomainsOnly: false`) deliberately: a developer who hits a not-yet-allowed domain gets a visible, attributable prompt, and a project can add a domain through a reviewed one-line PR to its `.claude/settings.json` — same business day, no MDM cycle. Default-deny is fully preserved — nothing is reachable without either an allowlist entry or an explicit human approval, and those approvals can be logged via OTEL telemetry for monitoring. The **strict** posture (`allowManagedDomainsOnly: true`) removes the per-developer approval entirely: only the managed `allowedDomains` count, every addition — including per-project registries — goes through an MDM push, and unlisted domains hard-block instead of prompting. Start standard; tighten to strict only if monitoring shows approvals being granted that shouldn't be, and budget for the MDM turnaround if you do. Whichever you pick, make it a recorded decision rather than a drift.
+### The strict-vs-standard domain decision
+
+The shipped managed file uses the **strict** posture (`allowManagedDomainsOnly: true`, honored from managed settings only): only the managed `allowedDomains` count, and an unlisted domain **hard-blocks with no prompt**. This is the only posture that delivers default-deny for an **unattended or auto-allowed agent** session — exactly this repo's [threat model](threat-model.md). The cost is centralized control: adding a domain (including a per-project registry) is an edit to the managed `allowedDomains` pushed via MDM, not a per-project PR — so keep your MDM turnaround for allowlist additions fast (the same-business-day target at the top of [troubleshooting.md](troubleshooting.md)).
+
+> [!WARNING]
+> **Don't relax to the standard posture (`allowManagedDomainsOnly: false`) for agent use.** Standard lets a project add domains via a reviewed one-line PR to its `.claude/settings.json` and turns an unlisted domain into a *prompt* instead of a hard block — convenient, but the prompt is a **human** approval step. In an auto-allowed (`autoAllowBashIfSandboxed: true` — our own baseline) or headless/agent session there is no one to answer it, and we have observed unlisted domains (e.g. `cms.gov`, `example.com`) reaching the network with **no prompt and no block** under standard posture. So standard is acceptable **only** where a human answers every egress prompt; for any unattended/agent/fleet use, keep the shipped strict default. Confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny).
+
+Whichever posture you run, make it a recorded decision rather than a drift, and re-run the egress check after deploying. **Note:** `allowManagedDomainsOnly` is honored *only* from managed settings — a solo developer using just `~/.claude/settings.json` cannot reach strict default-deny from user settings alone. Deploy this managed file (MDM, or `sudo` for a single machine — see below) or use the [devcontainer](devcontainer.md) / `srt` tier, which are unconditional default-deny regardless of posture.
+
+### Single machine (solo developer, no MDM)
+
+This isn't only a fleet concern — **most solo developers want host-level default-deny and have no MDM.** The managed file is still how you get it; just deploy it locally with `sudo` instead of a push. The installer has an opt-in flag:
+
+```bash
+./setup.sh --managed
+```
+
+That sudo-installs **both** enforcement policies (root-owned, mode 644) — the same files MDM would push:
+- Claude Code → `/Library/Application Support/ClaudeCode/managed-settings.json` (strict default-deny egress + `failIfUnavailable`)
+- Codex → `/etc/codex/requirements.toml` (the sandbox floor — no `danger-full-access`)
+
+By hand it's:
+
+```bash
+sudo mkdir -p "/Library/Application Support/ClaudeCode" /etc/codex
+sudo install -m 644 configs/claude-code/managed-settings.json "/Library/Application Support/ClaudeCode/managed-settings.json"
+sudo install -m 644 configs/codex/requirements.toml /etc/codex/requirements.toml
+```
+
+Restart Claude Code and confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny) (`cms.gov` must fail, `api.github.com` must succeed). Root ownership is the point: a hijacked agent running as you can't edit the policy back. The user-scope baseline from the [5-minute setup](claude-code.md) **cannot** substitute for this — the flag is managed-only. To add a domain later, edit this file's `allowedDomains` (with `sudo`) and restart.
 
 **Known soft spot:** `excludedCommands` (commands that run *unsandboxed*) has no managed-only lock — a developer can append entries in lower scopes. Keep the managed list empty, and treat `excludedCommands` appearing in a repo's `.claude/settings.json` as a code-review flag. Cheap detection: a CI grep over repo settings files for `excludedCommands`, `allowAllUnixSockets`, `enableWeakerNetworkIsolation`.
 
@@ -55,7 +84,7 @@ When the precondition holds, deploy [`configs/claude-code/managed-settings.scope
 Deploy [`configs/codex/requirements.toml`](../configs/codex/requirements.toml) — requirements are **non-overridable** by users. Precedence: cloud-managed (ChatGPT Business/Enterprise admin console) > MDM > file.
 
 - **MDM (preferred on macOS):** preference domain `com.openai.codex`, key `requirements_toml_base64` containing `base64 < requirements.toml`. Push as a configuration profile.
-- **File fallback:** `/etc/codex/requirements.toml`, root-owned.
+- **File fallback:** `/etc/codex/requirements.toml`, root-owned. Single machine without MDM: `./setup.sh --managed` deploys it (see [Single machine](#single-machine-solo-developer-no-mdm)).
 
 Enforced: `danger-full-access` forbidden, approval policy `never` forbidden, web search and browser use disabled. Project `.codex/config.toml` files load only for trusted projects and cannot change model providers/endpoints, so a malicious repo can't redirect Codex traffic.
 

@@ -52,10 +52,26 @@ Run these *through the agent* (ask it to run them) — all five must behave as s
 ```text
 cat ~/.ssh/id_ed25519.pub      → Operation not permitted / blocked
 touch ~/sandbox-escape-test    → Operation not permitted / blocked
-curl -s https://example.com    → blocked (not allowlisted)
+curl -s https://example.com    → blocked OR prompts — see the egress caveat below
 curl -s https://api.github.com/zen → succeeds (allowlisted)
 security list-keychains        → fails (keychain unreachable)
 ```
+
+The `example.com` line is the subtle one — read the next section before trusting it.
+
+### Verify your egress is actually default-deny
+
+A non-allowlisted domain returning **HTTP 200** means your egress is **not** default-deny — and for Claude Code's **standard** posture in an auto-allowed/agent session that is exactly what happens (the "prompt" has no human to block it). Test it explicitly:
+
+```text
+curl -s -o /dev/null -w '%{http_code}\n' https://www.cms.gov   → expect a failure (000/blocked)
+curl -s -o /dev/null -w '%{http_code}\n' https://example.com   → expect a failure (000/blocked)
+curl -s -o /dev/null -w '%{http_code}\n' https://api.github.com/zen → expect 200 (allowlisted)
+```
+
+- If the first two **fail** and GitHub **succeeds**: egress is default-deny. ✅
+- If the first two return **200**: the allowlist isn't gating egress. Your `allowedDomains` is only *pre-allowing* (skipping prompts) — it does **not** block unlisted domains on its own. Fix: deploy the **strict** posture (`allowManagedDomainsOnly: true` in *managed* settings — user/project settings can't set it), then restart and re-run. See [the strict-vs-standard decision](enforcement.md#the-strict-vs-standard-domain-decision).
+- One more check — confirm the block is the *proxy*, not just a dead network: `curl --noproxy '*' https://example.com` should fail to even resolve (direct egress is killed; everything must go through the filtering proxy). If *that* succeeds, the sandbox isn't confining egress at all.
 
 For the raw Seatbelt wrapper, the same five checks ran green on 2026-06-12 (macOS Darwin 25.3) — rerun them after any edit to `agent.sb`:
 

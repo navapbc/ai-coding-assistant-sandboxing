@@ -16,9 +16,13 @@
 #     requirements.toml, not from editing each developer's config.toml.
 #
 # Usage:
-#   ./setup.sh [--dry-run] [--yes]
+#   ./setup.sh [--dry-run] [--yes] [--managed]
 #     --dry-run   show diffs and what would change, write nothing
 #     --yes       proceed without prompting (for non-interactive/CI use)
+#     --managed   ALSO deploy the Claude Code managed (enforcement) policy to the
+#                 system path via sudo — strict default-deny egress, machine-wide,
+#                 non-overridable. This is the single-machine equivalent of an MDM
+#                 push; on a fleet, deploy via MDM instead (see docs/enforcement.md).
 #
 # Settings are read at tool startup, so changes apply after you RESTART the tool.
 set -euo pipefail
@@ -27,6 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIGS="${SCRIPT_DIR}/configs"
 DRY_RUN=false
 ASSUME_YES=false
+MANAGED=false
 STAMP="$(date +%Y%m%d-%H%M%S)"
 RESTART_NOTES=()
 TMPS=()
@@ -35,6 +40,7 @@ for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
     --yes|-y)  ASSUME_YES=true ;;
+    --managed) MANAGED=true ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -79,7 +85,9 @@ install_json() {
   fi
   if cmp -s "$src" "$dest"; then say "  unchanged: $dest"; return; fi
 
-  local merged; merged="$(mktemp -t sandbox-merge)"; TMPS+=("$merged")
+  # Honor TMPDIR (macOS `mktemp -t` ignores it and hardcodes the Darwin temp
+  # dir, which fails under constrained/sandboxed envs).
+  local merged; merged="$(mktemp "${TMPDIR:-/tmp}/sandbox-merge.XXXXXX")"; TMPS+=("$merged")
   if ! python3 "${SCRIPT_DIR}/.merge-json.py" "$dest" "$src" "$merged" 2>/dev/null; then
     say "  WARN: could not merge $dest (python3/JSON issue); leaving it unchanged."
     say "        Baseline to merge by hand: $src"
@@ -126,6 +134,60 @@ install_advise() {
   say "     MDM-deployed requirements.toml for enforcement (see docs/enforcement.md)."
 }
 
+# deploy_root_file <label> <src> <dst> — sudo-install a root-owned, mode-644
+# policy file. Honors --dry-run; the caller does the one confirmation prompt.
+# Returns 0 only when a file was actually written.
+deploy_root_file() {
+  local label="$1" src="$2" dst="$3"
+  if [[ ! -f "$src" ]]; then say "  SKIP $label (missing in repo): $src"; return 1; fi
+  say "  $label"
+  say "    source: $src"
+  say "    dest:   $dst"
+  [[ -f "$dst" ]] && show_diff "$dst" "$src"
+  if $DRY_RUN; then
+    say "    [dry-run] would: sudo mkdir -p <dir> && sudo install -m 644 <src> \"$dst\""
+    return 1
+  fi
+  if sudo mkdir -p "$(dirname "$dst")" && sudo install -m 644 "$src" "$dst"; then
+    say "    deployed: $dst"; return 0
+  fi
+  say "    WARN: deploy failed (sudo cancelled or denied); nothing written."; return 1
+}
+
+# install_managed — deploy the NON-overridable enforcement policies to their
+# system paths, root-owned 644: Claude Code (strict default-deny egress +
+# failIfUnavailable) and Codex (requirements.toml — the sandbox floor, no
+# danger-full-access). Opt-in (--managed) because it needs sudo. This is the
+# single-machine equivalent of an MDM push — on a fleet, use MDM instead.
+install_managed() {
+  say "Managed enforcement (--managed): deploy root-owned policy to system paths"
+  if [[ "$(uname)" != "Darwin" ]]; then
+    say "  SKIP: these managed paths are macOS-only. See docs/enforcement.md for Linux/WSL."; say ""; return
+  fi
+  say "  Makes policy non-overridable: strict default-deny egress for Claude Code,"
+  say "  and the non-negotiable sandbox floor for Codex (no danger-full-access)."
+  local cc_src="${CONFIGS}/claude-code/managed-settings.json"
+  local cc_dst="/Library/Application Support/ClaudeCode/managed-settings.json"
+  local cx_src="${CONFIGS}/codex/requirements.toml"
+  local cx_dst="/etc/codex/requirements.toml"
+  if $DRY_RUN; then
+    deploy_root_file "Claude Code policy" "$cc_src" "$cc_dst" || true
+    deploy_root_file "Codex policy" "$cx_src" "$cx_dst" || true
+    say ""; return
+  fi
+  if ! prompt_yes_no "Deploy these root-owned managed policies with sudo?"; then
+    say "  skipped (left unchanged)."; say ""; return
+  fi
+  say "  (sudo may prompt for your password)"
+  local any=false
+  if deploy_root_file "Claude Code policy" "$cc_src" "$cc_dst"; then any=true; fi
+  if deploy_root_file "Codex policy" "$cx_src" "$cx_dst"; then any=true; fi
+  if $any; then RESTART_NOTES+=("Claude Code / Codex: restart, then verify egress per docs/troubleshooting.md (cms.gov must FAIL)."); fi
+  say "  NOTE: single-machine equivalent of an MDM push. On a fleet, deploy via MDM"
+  say "        (Jamf/Kandji/Intune) instead — see docs/enforcement.md."
+  say ""
+}
+
 say "AI-agent sandbox setup  (dry-run: $DRY_RUN, assume-yes: $ASSUME_YES)"
 say "Reading configs from: $CONFIGS"
 say ""
@@ -165,6 +227,17 @@ if command -v copilot >/dev/null 2>&1; then
   say ""
 else
   say "Copilot CLI not found — skipping."; say ""
+fi
+
+# --- managed enforcement (opt-in, sudo) ----------------------------------
+if $MANAGED; then
+  install_managed
+else
+  say "Managed enforcement not requested. The user baseline above is NOT default-deny"
+  say "egress on its own — for that, re-run with --managed (single machine) or deploy"
+  say "the managed policy via MDM. See docs/enforcement.md. (Container tiers are"
+  say "default-deny without managed settings.)"
+  say ""
 fi
 
 # --- summary -------------------------------------------------------------

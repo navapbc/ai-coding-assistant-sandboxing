@@ -27,9 +27,20 @@ Claude Code ships an OS-level Bash sandbox (Seatbelt on macOS) with a domain-fil
 
    ```
    Run: cat ~/.ssh/id_ed25519.pub        → blocked (denyRead)
-   Run: curl https://example.com         → blocked (domain not allowed)
+   Run: curl https://example.com         → see the egress caveat below
    Run: npm test                          → runs without a prompt
    ```
+
+   > [!WARNING]
+   > **This user-settings baseline does not hard-block unlisted domains.** `network.allowedDomains` only *pre-allows* domains to skip the approval prompt — it does **not** deny others. An unlisted domain prompts, and in an auto-allowed or agent session (which is how Claude runs these) that prompt resolves to *allow*, so `curl https://example.com` will likely **succeed**, not block. True default-deny egress requires the **strict** posture (`allowManagedDomainsOnly: true`), honored **only from managed settings** — do step 4.
+
+4. **Get host-level default-deny (most solo developers want this).** The baseline above is *not* default-deny egress on its own. Deploy the strict managed policy to the system path:
+
+   ```bash
+   ./setup.sh --managed      # sudo-installs configs/claude-code/managed-settings.json (strict egress)
+   ```
+
+   This is the single-machine equivalent of an MDM push — the same policy, applied locally with `sudo`, and root-owned so a hijacked agent can't edit it back. Restart Claude Code and confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny) (`cms.gov` must fail). On a fleet, use MDM instead ([enforcement.md](enforcement.md#single-machine-solo-developer-no-mdm)). Prefer not to touch system files? The [devcontainer](devcontainer.md) / `srt` tiers are default-deny without managed settings.
 
 ## What the baseline config does
 
@@ -38,7 +49,7 @@ Claude Code ships an OS-level Bash sandbox (Seatbelt on macOS) with a domain-fil
 - **`sandbox.enabled: true`, `autoAllowBashIfSandboxed: true`** — every Bash command runs inside Seatbelt, auto-approved because the boundary contains it.
 - **`allowUnsandboxedCommands: false`** — disables the escape hatch where a failed command is retried *outside* the sandbox ("strict sandbox mode").
 - **`filesystem.denyRead`** — blocks the credential paths `~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.kube`, `~/.gnupg`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`, `~/.docker`, `~/Library/Keychains`. **This matters because the sandbox default allows reading your whole disk** — write scope is narrow by default, read scope is not. (`~/.gitconfig` is deliberately *not* on this list: git needs it for commit identity, and its write is already blocked, which is what stops malicious credential-helper injection — just don't store tokens in it.)
-- **`network.allowedDomains`** — Anthropic endpoints + the five exact GitHub hosts. Everything else is blocked or prompts, depending on mode. No domains are pre-allowed by the product; this list *is* your egress policy.
+- **`network.allowedDomains`** — Anthropic endpoints + the five exact GitHub hosts. **Caveat:** in *user* settings this list only *pre-allows* (skips the approval prompt) — it does **not** hard-block unlisted domains. An unlisted domain prompts, and in an auto-allowed/agent session that prompt resolves to *allow*, so egress is **not** default-deny on its own. Hard default-deny requires the **strict** posture (`allowManagedDomainsOnly: true`) in *managed* settings ([enforcement.md](enforcement.md#the-strict-vs-standard-domain-decision)); verify with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny).
 - **`permissions.ask`** — `git push`, `gh pr create`, `gh repo`, `npm publish` always prompt, even in auto-allow mode (content-scoped ask rules survive sandboxing). The `git push` prompt can be dropped fleet-wide once repo-scoped PATs are deployed — see [enforcement.md](enforcement.md#relaxing-the-git-push-prompt-after-scoped-pats).
 - **`env`** — `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` (no Statsig/Sentry telemetry, so those domains never need allowlisting) and `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`. The latter is **documented** to strip Anthropic and cloud-provider credentials from Bash subprocesses ([per the sandboxing docs](https://code.claude.com/docs/en/sandboxing)) — but it is a **fixed built-in heuristic, not a configurable allowlist**, its exact variable set is undocumented, and **we have only partially verified it**: we confirmed it does **not** cover GitHub PATs (a sandboxed `echo $GITHUB_TOKEN` returns the token in full), and we have **not** confirmed it actually strips any specific AWS/GCP/Azure variable. So treat the cloud-credential scrubbing as an **unverified vendor claim**, not a guarantee — and don't rely on it at all for `GITHUB_TOKEN`/`GH_TOKEN` or other non-cloud secrets. The OS sandbox doesn't help here either: it confines filesystem and network, not the inherited environment. Unlike Claude Code's fixed heuristic, [Codex exposes a *configurable* deny-by-default env policy](codex.md#environment-variables-dont-trust-the-defaults); the equivalent here is the `env -i` allowlist in [`configs/seatbelt/run-sandboxed.sh`](../configs/seatbelt/run-sandboxed.sh), which applies to commands you launch through that wrapper — not to Claude Code's own Bash tool. The durable fix is to keep long-lived secrets out of your shell environment entirely.
 
