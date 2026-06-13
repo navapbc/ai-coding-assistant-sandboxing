@@ -50,11 +50,16 @@ This isn't only a fleet concern — **most solo developers want host-level defau
 ./setup.sh --managed
 ```
 
-That sudo-installs [`configs/claude-code/managed-settings.json`](../configs/claude-code/managed-settings.json) to `/Library/Application Support/ClaudeCode/managed-settings.json` (root-owned, mode 644) — the same strict policy MDM would push. By hand it's:
+That sudo-installs **both** enforcement policies (root-owned, mode 644) — the same files MDM would push:
+- Claude Code → `/Library/Application Support/ClaudeCode/managed-settings.json` (strict default-deny egress + `failIfUnavailable`)
+- Codex → `/etc/codex/requirements.toml` (the sandbox floor — no `danger-full-access`)
+
+By hand it's:
 
 ```bash
-sudo mkdir -p "/Library/Application Support/ClaudeCode"
+sudo mkdir -p "/Library/Application Support/ClaudeCode" /etc/codex
 sudo install -m 644 configs/claude-code/managed-settings.json "/Library/Application Support/ClaudeCode/managed-settings.json"
+sudo install -m 644 configs/codex/requirements.toml /etc/codex/requirements.toml
 ```
 
 Restart Claude Code and confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny) (`cms.gov` must fail, `api.github.com` must succeed). Root ownership is the point: a hijacked agent running as you can't edit the policy back. The user-scope baseline from the [5-minute setup](claude-code.md) **cannot** substitute for this — the flag is managed-only. To add a domain later, edit this file's `allowedDomains` (with `sudo`) and restart.
@@ -79,7 +84,7 @@ When the precondition holds, deploy [`configs/claude-code/managed-settings.scope
 Deploy [`configs/codex/requirements.toml`](../configs/codex/requirements.toml) — requirements are **non-overridable** by users. Precedence: cloud-managed (ChatGPT Business/Enterprise admin console) > MDM > file.
 
 - **MDM (preferred on macOS):** preference domain `com.openai.codex`, key `requirements_toml_base64` containing `base64 < requirements.toml`. Push as a configuration profile.
-- **File fallback:** `/etc/codex/requirements.toml`, root-owned.
+- **File fallback:** `/etc/codex/requirements.toml`, root-owned. Single machine without MDM: `./setup.sh --managed` deploys it (see [Single machine](#single-machine-solo-developer-no-mdm)).
 
 Enforced: `danger-full-access` forbidden, approval policy `never` forbidden, web search and browser use disabled. Project `.codex/config.toml` files load only for trusted projects and cannot change model providers/endpoints, so a malicious repo can't redirect Codex traffic.
 

@@ -56,7 +56,7 @@ Codex is, however, the **only** one of the three tools with a native deny-by-def
 
 ## For the platform team
 
-[`configs/codex/requirements.toml`](../configs/codex/requirements.toml) makes the policy non-overridable: `allowed_sandbox_modes` excludes `danger-full-access`, approval policy `never` is forbidden, web search and browser use are disabled. Deploy via MDM (`com.openai.codex` → `requirements_toml_base64`) or `/etc/codex/requirements.toml` — details in [enforcement.md](enforcement.md). Project-level `.codex/config.toml` files load only for trusted projects and cannot change model endpoints or providers.
+[`configs/codex/requirements.toml`](../configs/codex/requirements.toml) makes the policy non-overridable: `allowed_sandbox_modes` excludes `danger-full-access`, approval policy `never` is forbidden, web search and browser use are disabled. Deploy via MDM (`com.openai.codex` → `requirements_toml_base64`) or `/etc/codex/requirements.toml` — details in [enforcement.md](enforcement.md). Single machine without MDM: `./setup.sh --managed` installs it (alongside the Claude Code policy) — see [Single machine](enforcement.md#single-machine-solo-developer-no-mdm). Project-level `.codex/config.toml` files load only for trusted projects and cannot change model endpoints or providers.
 
 ## References (source of truth)
 

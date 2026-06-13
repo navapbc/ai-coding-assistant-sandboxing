@@ -134,37 +134,55 @@ install_advise() {
   say "     MDM-deployed requirements.toml for enforcement (see docs/enforcement.md)."
 }
 
-# install_managed — deploy the Claude Code managed-settings.json (enforcement
-# tier) to the system path, root-owned, mode 644. Opt-in (--managed) because it
-# needs sudo and writes a NON-overridable machine policy: strict default-deny
-# egress (allowManagedDomainsOnly) plus failIfUnavailable. This is the
-# single-machine equivalent of an MDM push — on a fleet, use MDM instead.
-install_managed() {
-  local src="${CONFIGS}/claude-code/managed-settings.json"
-  local dst="/Library/Application Support/ClaudeCode/managed-settings.json"
-  say "Managed enforcement (--managed): Claude Code strict default-deny policy"
-  if [[ "$(uname)" != "Darwin" ]]; then
-    say "  SKIP: this managed path is macOS-only. See docs/enforcement.md for Linux/WSL."; say ""; return
-  fi
-  if [[ ! -f "$src" ]]; then say "  SKIP (missing in repo): $src"; say ""; return; fi
-  say "  source: $src"
-  say "  dest:   $dst"
-  say "  Effect: strict egress machine-wide (only the managed allowlist is reachable),"
-  say "          and Claude Code refuses to start if the sandbox can't initialize."
+# deploy_root_file <label> <src> <dst> — sudo-install a root-owned, mode-644
+# policy file. Honors --dry-run; the caller does the one confirmation prompt.
+# Returns 0 only when a file was actually written.
+deploy_root_file() {
+  local label="$1" src="$2" dst="$3"
+  if [[ ! -f "$src" ]]; then say "  SKIP $label (missing in repo): $src"; return 1; fi
+  say "  $label"
+  say "    source: $src"
+  say "    dest:   $dst"
   [[ -f "$dst" ]] && show_diff "$dst" "$src"
   if $DRY_RUN; then
-    say "  [dry-run] would: sudo mkdir -p <dir> && sudo install -m 644 \"$src\" \"$dst\""; say ""; return
+    say "    [dry-run] would: sudo mkdir -p <dir> && sudo install -m 644 <src> \"$dst\""
+    return 1
   fi
-  if ! prompt_yes_no "Deploy this root-owned managed policy with sudo?"; then
+  if sudo mkdir -p "$(dirname "$dst")" && sudo install -m 644 "$src" "$dst"; then
+    say "    deployed: $dst"; return 0
+  fi
+  say "    WARN: deploy failed (sudo cancelled or denied); nothing written."; return 1
+}
+
+# install_managed — deploy the NON-overridable enforcement policies to their
+# system paths, root-owned 644: Claude Code (strict default-deny egress +
+# failIfUnavailable) and Codex (requirements.toml — the sandbox floor, no
+# danger-full-access). Opt-in (--managed) because it needs sudo. This is the
+# single-machine equivalent of an MDM push — on a fleet, use MDM instead.
+install_managed() {
+  say "Managed enforcement (--managed): deploy root-owned policy to system paths"
+  if [[ "$(uname)" != "Darwin" ]]; then
+    say "  SKIP: these managed paths are macOS-only. See docs/enforcement.md for Linux/WSL."; say ""; return
+  fi
+  say "  Makes policy non-overridable: strict default-deny egress for Claude Code,"
+  say "  and the non-negotiable sandbox floor for Codex (no danger-full-access)."
+  local cc_src="${CONFIGS}/claude-code/managed-settings.json"
+  local cc_dst="/Library/Application Support/ClaudeCode/managed-settings.json"
+  local cx_src="${CONFIGS}/codex/requirements.toml"
+  local cx_dst="/etc/codex/requirements.toml"
+  if $DRY_RUN; then
+    deploy_root_file "Claude Code policy" "$cc_src" "$cc_dst" || true
+    deploy_root_file "Codex policy" "$cx_src" "$cx_dst" || true
+    say ""; return
+  fi
+  if ! prompt_yes_no "Deploy these root-owned managed policies with sudo?"; then
     say "  skipped (left unchanged)."; say ""; return
   fi
   say "  (sudo may prompt for your password)"
-  if sudo mkdir -p "$(dirname "$dst")" && sudo install -m 644 "$src" "$dst"; then
-    say "  deployed: $dst"
-    RESTART_NOTES+=("Claude Code: restart, then verify egress per docs/troubleshooting.md (cms.gov must FAIL).")
-  else
-    say "  WARN: managed deploy failed (sudo cancelled or denied); nothing written."
-  fi
+  local any=false
+  if deploy_root_file "Claude Code policy" "$cc_src" "$cc_dst"; then any=true; fi
+  if deploy_root_file "Codex policy" "$cx_src" "$cx_dst"; then any=true; fi
+  if $any; then RESTART_NOTES+=("Claude Code / Codex: restart, then verify egress per docs/troubleshooting.md (cms.gov must FAIL)."); fi
   say "  NOTE: single-machine equivalent of an MDM push. On a fleet, deploy via MDM"
   say "        (Jamf/Kandji/Intune) instead — see docs/enforcement.md."
   say ""
