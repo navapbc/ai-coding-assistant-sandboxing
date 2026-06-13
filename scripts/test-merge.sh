@@ -4,7 +4,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-tmp="$(mktemp -d)"
+# Honor TMPDIR (macOS `mktemp -d` without a template ignores it and hardcodes
+# the Darwin per-user temp dir, which breaks in constrained/sandboxed envs).
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/test-merge.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 printf '%s' '{"theme":"dark","sandbox":{"enabled":false},"permissions":{"ask":["Bash(terraform apply *)"]}}' \
