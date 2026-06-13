@@ -37,7 +37,7 @@ Every configuration in this repo enforces both sides. When you widen one side (a
 | Workspace-scoped writes | Commands write only to the project dir + session temp | macOS Seatbelt (kernel) |
 | Secret-path read denial | `~/.ssh`, `~/.aws`, etc. unreadable even though broad read is allowed | Seatbelt / tool config (`denyRead`) |
 | Default-deny egress | Only allowlisted domains reachable; everything else refused | Filtering proxy outside the sandbox (built-in tools, `srt`) or iptables (devcontainer) |
-| Sanitized environment | Secrets in your shell env don't reach agent subprocesses | `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, `env -i` in our wrapper |
+| Sanitized environment | Secrets in your shell env don't reach agent subprocesses | `env -i` in our wrapper (deny-by-default allowlist — fully enforces this); `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is best-effort only — it strips Anthropic/cloud-provider creds but **not** GitHub PATs (`GITHUB_TOKEN`/`GH_TOKEN`) |
 | Human-approval ask-list | `git push`, `gh pr create`, `npm publish`, `docker` prompt before running | Tool permission rules |
 
 A key architectural fact: **macOS Seatbelt cannot filter by domain.** The kernel sees IP addresses and ports, never hostnames. Every serious implementation (Claude Code's `/sandbox`, Codex, `srt`) therefore blocks all direct egress at the kernel and routes traffic through a proxy *outside* the sandbox that enforces the domain allowlist. A tool that ignores the proxy doesn't escape — it simply has no network. Failure is closed.

@@ -21,6 +21,30 @@ network_access = false
 # writable roots. Add roots sparingly, e.g. a language shim directory:
 # writable_roots = ["/Users/YOU/.pyenv/shims"]
 
+[shell_environment_policy]
+# Deny-by-default environment for sandboxed shell commands. The Seatbelt
+# sandbox confines filesystem + network but does NOT strip env vars, and
+# Codex's DEFAULTS pass the FULL parent environment through (inherit = "all",
+# ignore_default_excludes = true) — so secrets exported in your shell
+# (GITHUB_TOKEN, AWS_ACCESS_KEY_ID, etc.) reach every command Codex runs.
+#
+# "core" rebuilds a minimal allowlist (PATH, SHELL, TMPDIR, HOME, LANG, USER,
+# …) instead of inheriting everything — the same posture as the seatbelt
+# wrapper's `env -i`. This is the strongest native option and the reason we
+# set it. Defaults verified against the openai/codex source, not the docs
+# (which don't publish them); some third-party blogs state these defaults
+# incorrectly.
+inherit = "core"
+# Belt-and-suspenders: keep the built-in name filter ON so that even if you
+# loosen `inherit`, vars matching *KEY* / *SECRET* / *TOKEN* are dropped.
+# (This filter is OFF by default in Codex — `ignore_default_excludes = true`.)
+ignore_default_excludes = false
+# Note the filter is name-pattern only: it catches GITHUB_TOKEN / GH_TOKEN /
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY but MISSES creds without those
+# substrings (e.g. GOOGLE_APPLICATION_CREDENTIALS). `inherit = "core"` is what
+# actually closes that gap. The durable fix remains: don't export long-lived
+# secrets into your shell at all.
+
 # ---------------------------------------------------------------------------
 # ALTERNATIVE: permission profiles (newer system; replaces sandbox_mode —
 # configure ONE of the two, never both). Profiles add domain-level network
