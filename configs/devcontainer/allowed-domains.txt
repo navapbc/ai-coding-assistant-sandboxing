@@ -37,6 +37,17 @@ repo.maven.apache.org
 repo1.maven.org
 services.gradle.org
 plugins.gradle.org
+# Rust (static.crates.io is a dedicated CDN host, NOT the *.cloudfront.net wildcard)
+crates.io
+index.crates.io
+static.crates.io
+# .NET / NuGet
+api.nuget.org
+# Yarn Classic (Berry uses registry.npmjs.org, above)
+registry.yarnpkg.com
+# Ruby
+rubygems.org
+index.rubygems.org
 
 # --- OS packages inside the container (apt) ---
 deb.debian.org

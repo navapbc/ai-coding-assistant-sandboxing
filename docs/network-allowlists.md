@@ -125,20 +125,30 @@ The GitHub hosts above assume **public `github.com`**. If your org uses an enter
 
 **Devcontainer tier needs one more change.** `init-firewall.sh` fetches GitHub's published IP ranges from `api.github.com/meta`, which is correct **only for public github.com**. For a self-hosted server, set these env vars (no script edit needed): `SKIP_GITHUB_META=true`, `EXTRA_CIDRS="<your-GHES-server-CIDR>"`, and `VERIFY_REACHABLE_URL="https://<your-host>"` so the self-test checks the right host. See [devcontainer.md](devcontainer.md#how-the-firewall-works-and-its-honest-limits).
 
-## Per-stack: package registries (project-level opt-in)
+## Per-stack: package registries
 
-Add only the stacks the project uses, in the project's config (`.claude/settings.json`, Codex profile, or `.devcontainer/allowed-domains.txt`) — not in the global baseline.
+The **managed (strict) default already includes the common pull registries**, so `pip`, `npm`, `yarn`, `cargo`, `dotnet restore`, `bundle`, Maven, and Gradle work out of the box. They live in the [manifest](../configs/allowed-domains.manifest.json) under the `claude-managed` and `devcontainer` tiers. To add a stack under the **strict** posture, edit the **managed** file (a project `.claude/settings.json` is *ignored* under strict — see [enforcement.md](enforcement.md#the-strict-vs-standard-domain-decision)); under standard/devcontainer you can add at project scope.
 
-| Stack | Domains |
-|-------|---------|
-| npm | `registry.npmjs.org` |
-| Python | `pypi.org`, `files.pythonhosted.org` |
-| Java/Gradle | `repo.maven.apache.org`, `repo1.maven.org`, `services.gradle.org`, `plugins.gradle.org` |
-| Go | `proxy.golang.org`, `sum.golang.org` |
-| Ruby | `rubygems.org` |
-| Rust | `crates.io`, `static.crates.io`, `index.crates.io` |
+| Stack | Domains | In default |
+|-------|---------|:---------:|
+| npm / Yarn Berry | `registry.npmjs.org` | ✅ |
+| Yarn Classic | `registry.yarnpkg.com` | ✅ |
+| Python | `pypi.org`, `files.pythonhosted.org` | ✅ |
+| Java / Gradle | `repo.maven.apache.org`, `repo1.maven.org`, `services.gradle.org`, `plugins.gradle.org` | ✅ |
+| Rust | `index.crates.io`, `static.crates.io`, `crates.io` | ✅ |
+| .NET / NuGet | `api.nuget.org` | ✅ |
+| Ruby | `rubygems.org`, `index.rubygems.org` | ✅ |
 
-If the organization runs an internal artifact proxy (Artifactory/Nexus), **prefer it as the single registry endpoint** and drop the public registries from allowlists: one domain, organization-curated packages, and no public-registry publish channel.
+`static.crates.io` is CloudFront-backed but on a **dedicated** hostname, so it does not trip the `*.cloudfront.net` ban — only shared wildcards are forbidden.
+
+**Not supported under strict egress — they fundamentally depend on a banned multi-tenant cloud-storage domain:**
+
+| Stack | Why it can't be allowlisted | Use instead |
+|-------|-----------------------------|-------------|
+| **GitHub Packages** (npm/Maven/NuGet/RubyGems) | content downloads 302-redirect to `*.blob.core.windows.net` (Azure Blob) — a shared exfil channel on the [never-list](#never-allowlisted--and-why) | an org artifact proxy (one allowlisted host), or a deliberate, reviewed exception |
+| **Go via the public proxy** | `proxy.golang.org` 302-redirects module zips to `storage.googleapis.com` | `go mod vendor` (commit deps, no egress) or a self-hosted GOPROXY on one allowlisted host |
+
+If the organization runs an internal artifact proxy (Artifactory/Nexus), **prefer it as the single registry endpoint** and drop the public registries: one domain, organization-curated packages, and no public-registry publish channel — and it sidesteps the GitHub Packages / Go cloud-storage problem entirely.
 
 ## Devcontainer-only: image build and OS packages
 
@@ -168,13 +178,20 @@ This is also a deliberate isolation stance: **agent sandboxes get no path to clo
 
 ## Keeping the allowlists in sync
 
-The allowlist is not yet stored in one place. The domains live in several files by necessity, because each tool reads its own format:
+The domains still live in several files (each tool reads its own format), but there is now one **authoritative source** plus a CI check that the rest match it — no more "remember to edit the other files":
 
-- `configs/devcontainer/allowed-domains.txt` — the shared list for the **container-style tiers** (the devcontainer firewall and Docker Sandboxes' `apply-policy.sh` both read it).
-- `configs/claude-code/*.json` (`sandbox.network.allowedDomains`) and `configs/codex/config.toml` — the **built-in-tool tiers** keep their own copies.
-- The reference tables in this document.
+- **[`configs/allowed-domains.manifest.json`](../configs/allowed-domains.manifest.json)** is the source of truth. Each domain records its `purpose` and which **tiers** include it (`claude-user`, `claude-managed`, `devcontainer`), plus a `rejected` list of domains we deliberately don't allow and why.
+- **`scripts/check-config-consistency.py`** (run in CI on every push/PR) fails if any tier's file drifts from the manifest — or if a forbidden domain appears. Editing the manifest without updating the files, or vice versa, is caught automatically.
 
-So a domain change may need to land in more than one file. Until a generator/check enforces it, treat this as a **review checklist item**: when you change one allowlist, confirm whether the others need the same edit, and call it out in the PR. Closing this gap (a single source file that renders the per-tool configs, plus a CI drift check) is a tracked follow-up.
+Tiers the check enforces (and the files they map to):
+
+| Tier | File(s) |
+|------|---------|
+| `claude-user` | `configs/claude-code/settings.user.json` |
+| `claude-managed` | `configs/claude-code/managed-settings.json` + `managed-settings.scoped-pat.json` |
+| `devcontainer` | `configs/devcontainer/allowed-domains.txt` (the devcontainer firewall and Docker Sandboxes' `apply-policy.sh` both read it) |
+
+**To change an allowlist:** edit the manifest, update the matching tier file(s), and run the check — it prints exactly what's missing/extra. The Codex permission-profile block (`configs/codex/config.toml`, commented) and the project example `configs/claude-code/settings.json` are illustrative and **not** machine-checked; keep them roughly in step by hand. The check enforces *consistency*, not *correctness* — a human reviewer (ideally a [CODEOWNER](../.github/CODEOWNERS)) still decides whether a domain belongs.
 
 The same applies to the **secret-path `denyRead` lists** (`~/.ssh`, `~/.aws`, `~/.npmrc`, …), which are duplicated across `managed-settings.json`, `settings.user.json`, `agent.sb`, and the `srt` example. The canonical set is the 11 paths in `agent.sb`; keep the others aligned to it. (`~/.gitconfig` is deliberately excluded — see the note in `agent.sb`.)
 
