@@ -14,20 +14,42 @@ This directory is an **opt-in alternative** that filters egress by **hostname (T
 
 **If you want to beat domain fronting, use TLS *termination*, not SNI** — that means inspecting the real Host, which requires a MITM CA the container trusts. [Docker Sandboxes](../../../docs/docker-sandbox.md) already does TLS-terminating hostname filtering out of the box; if it's available to you, it is the stronger option and you don't need this.
 
-## Enable it
+### Domain fronting — why SNI isn't enough
 
-1. **Dockerfile** — install Envoy and create an unprivileged user to run it:
-   ```dockerfile
-   # install envoy (pin a version), then:
-   RUN useradd --system --no-create-home envoyproxy
-   COPY egress-proxy/ /usr/local/share/egress-proxy/
+Fronting splits the destination across two signals: the **TLS SNI** (cleartext — what this proxy filters) and the **HTTP `Host:`** header (inside the encrypted stream — what the server actually routes on). On a shared CDN frontend the two can disagree and the edge honors the `Host`:
+
+```
+TLS SNI: api.github.com       ← allowlisted, so we forward
+Host: attacker.example         ← where the CDN routes, if it shares a frontend
+```
+
+We never see the `Host`, so the connection passes. Neither SNI nor IP filtering can stop this — both gate on the *outer*, allowlisted-but-attacker-chosen signal while the real target is in the encrypted inner. Two mitigations: (1) **don't allowlist frontable multi-tenant CDNs** — the repo's [never-list](../../../docs/network-allowlists.md#never-allowlisted--and-why) bans `*.cloudfront.net`, `*.amazonaws.com`, `*.r2.dev`, `*.blob.core.windows.net`, etc. for exactly this reason, so there's nothing to front *through*; (2) **TLS termination + `Host` allowlisting** — the only robust fix, i.e. [Docker Sandboxes](../../../docs/docker-sandbox.md).
+
+### Making ECH a hard fail
+
+ECH (Encrypted Client Hello) encrypts the real SNI, leaving only an outer "public name". A ClientHello with **no readable SNI already fails closed here** — no filter chain matches it, so Envoy drops the connection. The residual gap is an ECH connection whose *outer* name happens to be allowlisted. To make ECH a true hard fail:
+
+- **At DNS (recommended — fits the devcontainer's DNS controls).** ECH only works if the client first fetches an ECH config from DNS — the `ech` SvcParam in the `HTTPS`/`SVCB` record. Strip or refuse it at the pinned resolver (or the opt-in dnsmasq allowlist) so clients get no config and **fall back to cleartext SNI**, which this proxy filters. Most reliable, no proxy change.
+- **At the proxy (deeper).** Reject ClientHellos carrying the `encrypted_client_hello` extension (TLS ext type `0xfe0d`). Envoy's stock TLS inspector exposes no ECH matcher, so this needs a custom listener/TCP filter that parses the ClientHello — more engineering, untested here.
+
+Together these enforce *"every egress must present a cleartext SNI we can match"*: no readable SNI ⇒ denied (already true), and ECH made unavailable via DNS ⇒ nothing can hide one. (This still doesn't beat plain domain fronting — only TLS termination does.)
+
+## Enable it (two flags — no script edits)
+
+The image and `init-firewall.sh` already support this mode; flip two values in `devcontainer.json` (and make sure this `egress-proxy/` dir is in your `.devcontainer/` build context alongside `Dockerfile`/`init-firewall.sh`):
+
+1. **Build with Envoy** — `build.args.EGRESS_PROXY`:
+   ```json
+   "build": { "dockerfile": "Dockerfile", "args": { "EGRESS_PROXY": "true" } }
    ```
-2. **Run the proxy init instead of the IP firewall** in `devcontainer.json`:
-   ```jsonc
-   "postStartCommand": "sudo /usr/local/share/egress-proxy/init-egress-proxy.sh"
+   This installs Envoy (pinned via the `ENVOY_VERSION` arg) and the `envoyproxy` run-as user. Default `false` keeps the image lean — the proxy scripts are copied either way, just unused.
+2. **Select proxy mode** — `containerEnv.EGRESS_MODE`:
+   ```json
+   "containerEnv": { "EGRESS_MODE": "proxy" }
    ```
-   (Keep `--cap-add=NET_ADMIN`/`NET_RAW` in `runArgs`.)
-3. Rebuild the container.
+   `postStartCommand` stays `sudo /usr/local/bin/init-firewall.sh`; it **hands off to this proxy** when `EGRESS_MODE=proxy` (default `ipset` keeps the IP firewall). Keep `--cap-add=NET_ADMIN`/`NET_RAW` in `runArgs`. The allowlist is the same `allowed-domains.txt` either way — `init-firewall.sh` passes it through as `DOMAINS_FILE`.
+
+Then rebuild the container. To switch back, set `EGRESS_PROXY` to `false` (rebuild) and/or `EGRESS_MODE` to `ipset`.
 
 Run Envoy as a **managed service** for anything beyond a quick test — the init script backgrounds it for a single `postStart` run, which won't survive a crash. A supervisor or a sidecar `docker-compose` service is the durable shape.
 

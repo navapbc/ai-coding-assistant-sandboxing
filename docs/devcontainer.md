@@ -22,7 +22,7 @@ Based on Anthropic's reference implementation ([anthropics/claude-code/.devconta
 
    ```bash
    mkdir -p .devcontainer
-   cp configs/devcontainer/{devcontainer.json,Dockerfile,init-firewall.sh,allowed-domains.txt} .devcontainer/
+   cp -r configs/devcontainer/{devcontainer.json,Dockerfile,init-firewall.sh,allowed-domains.txt,egress-proxy} .devcontainer/
    cp configs/claude-code/managed-settings.json .devcontainer/
    cp configs/codex/requirements.toml .devcontainer/
    ```

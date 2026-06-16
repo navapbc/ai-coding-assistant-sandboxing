@@ -16,6 +16,33 @@ IFS=$'\n\t'
 
 ALLOWED_DOMAINS_FILE="${ALLOWED_DOMAINS_FILE:-/usr/local/etc/allowed-domains.txt}"
 
+# --- Egress mode switch --------------------------------------------------
+# EGRESS_MODE=ipset (default): the IP-resolved firewall in this script.
+# EGRESS_MODE=proxy: hand off to the experimental SNI-filtering Envoy proxy
+# (hostname-matched, immune to CDN IP drift). Requires the image built with
+# Envoy + the egress-proxy scripts (Dockerfile --build-arg EGRESS_PROXY=true).
+# See configs/devcontainer/egress-proxy/README.md.
+EGRESS_MODE="${EGRESS_MODE:-ipset}"
+if [[ "$EGRESS_MODE" == "proxy" ]]; then
+    proxy_init="${EGRESS_PROXY_INIT:-}"
+    if [[ -z "$proxy_init" ]]; then
+        _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        for cand in "${_here}/egress-proxy/init-egress-proxy.sh" \
+                    /usr/local/share/egress-proxy/init-egress-proxy.sh; do
+            if [[ -r "$cand" ]]; then proxy_init="$cand"; break; fi
+        done
+    fi
+    if [[ -z "$proxy_init" || ! -r "$proxy_init" ]]; then
+        echo "ERROR: EGRESS_MODE=proxy but init-egress-proxy.sh not found." >&2
+        echo "       Build with --build-arg EGRESS_PROXY=true, or set EGRESS_PROXY_INIT." >&2
+        exit 1
+    fi
+    echo "init-firewall: EGRESS_MODE=proxy -> handing off to $proxy_init"
+    export DOMAINS_FILE="$ALLOWED_DOMAINS_FILE"   # single source of truth
+    exec bash "$proxy_init"
+fi
+# --- default (ipset) mode continues below --------------------------------
+
 # GitHub IP-range source. Defaults to public github.com's meta endpoint.
 # For GitHub Enterprise Server (self-hosted), set SKIP_GITHUB_META=true and put
 # your server's CIDR(s) in EXTRA_CIDRS (space-separated) — your GHES host is your
