@@ -49,11 +49,13 @@ api.github.com/meta ──▶ GitHub CIDR ranges     ──▶        │
                           REJECT everything else (fail fast, clear error)
 ```
 
-Two trade-offs versus the hostname-filtering proxies of Tier 1, stated plainly:
+Trade-offs versus the hostname-filtering proxies of Tier 1, stated plainly:
 
 1. **IP drift.** Domains resolve once at start. A CDN-backed domain that rotates IPs can stop working mid-session — rerun `sudo /usr/local/bin/init-firewall.sh` to re-resolve. (This fails *closed*: drift blocks, never opens.)
 2. **Range over-permission.** GitHub's published CIDR ranges allow all of GitHub — consistent with our policy, but remember [the residual risk](threat-model.md#residual-risks--read-this-before-calling-anything-secure): allowed multi-tenant hosts are still exfil channels.
 3. **DNS needs its own control (layered here).** The IP-based allowlist doesn't inspect DNS. By default the firewall now pins DNS egress to the container's configured resolver(s) — blocking direct queries to an arbitrary resolver. For full coverage, set `ENABLE_DNS_ALLOWLIST=true` to run a local dnsmasq that resolves only allowlisted domains and refuses the rest, which closes recursive DNS tunneling (opt-in, requires the bundled dnsmasq, currently **untested** — verify resolution first). The built-in proxy tiers and Docker Sandboxes still handle DNS more cleanly ([details](threat-model.md#residual-risks--read-this-before-calling-anything-secure)).
+
+**Want hostname filtering on this tier?** Trade-offs 1–2 are inherent to IP matching. Two ways to get hostname-based egress instead: use **[Docker Sandboxes](docker-sandbox.md)** (TLS-*terminating* hostname filtering — the strongest option, and the preferred Tier 2 where Docker is available), or enable the devcontainer's **experimental, opt-in [SNI-proxy egress mode](../configs/devcontainer/egress-proxy/README.md)** — an Envoy that matches the allowlist by TLS **SNI** (no IP resolution, so no drift), regenerated from the same `allowed-domains.txt`. SNI matching still doesn't defeat domain fronting or ECH ([residual risk #2](threat-model.md#residual-risks--read-this-before-calling-anything-secure)) — only TLS termination does — so the default IP firewall stays the simple, no-MITM baseline.
 
 **Enterprise GitHub caveat.** The `api.github.com/meta` fetch above is correct only for public `github.com`. On a self-hosted GitHub Enterprise Server, run the firewall with `SKIP_GITHUB_META=true`, `EXTRA_CIDRS="<your-server-CIDR>"`, and `VERIFY_REACHABLE_URL="https://<your-host>"` (all read from the environment — no script edit). See [Enterprise GitHub](network-allowlists.md#enterprise-github) for the hostnames to add alongside it.
 

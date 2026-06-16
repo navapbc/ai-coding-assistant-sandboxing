@@ -1,0 +1,57 @@
+# Envoy egress gateway — SNI allowlisting WITHOUT TLS termination.
+#
+# ⚠️ EXPERIMENTAL / UNTESTED IN CI. This is a reviewed reference for the opt-in
+# SNI-proxy egress mode (see ./README.md). The exact `@type` strings and
+# ORIGINAL_DST behavior are Envoy-version-sensitive — validate on a real build
+# before relying on it. Pin your Envoy version and test the self-checks in
+# README.md ("Validate before relying").
+#
+# How it works: iptables redirects outbound :443 into this listener (port 15001).
+# The TLS inspector reads the ClientHello SNI; only connections whose SNI matches
+# the allowlist below are tcp-proxied (TLS passed through, NOT terminated) to
+# their ORIGINAL destination. Unmatched SNI hits no filter chain -> Envoy closes
+# the connection => default-deny by hostname, immune to CDN IP rotation.
+#
+# It does NOT defeat domain fronting or ECH (the SNI is client-supplied/possibly
+# encrypted) — for that you need TLS termination (use Docker Sandboxes, which
+# TLS-terminates). See README.md "What this does and does not protect."
+
+admin:
+  address:
+    socket_address: { address: 127.0.0.1, port_value: 15000 }
+
+static_resources:
+  listeners:
+  - name: egress_sni
+    # use_original_dst lets the ORIGINAL_DST cluster recover the real target
+    # (via SO_ORIGINAL_DST) from the iptables-REDIRECTed connection.
+    use_original_dst: true
+    address:
+      socket_address: { address: 0.0.0.0, port_value: 15001 }
+    listener_filters:
+    - name: envoy.filters.listener.tls_inspector
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
+    filter_chains:
+    # The allowlist. server_names matches the TLS SNI; leading-wildcards like
+    # "*.githubusercontent.com" are supported. This block is REGENERATED at
+    # container start from configs/devcontainer/allowed-domains.txt by
+    # init-egress-proxy.sh — do not hand-edit the names here.
+    - filter_chain_match:
+        server_names:
+          # @@SERVER_NAMES@@  (init-egress-proxy.sh replaces this line)
+          - "example.invalid"
+      filters:
+      - name: envoy.filters.network.tcp_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+          stat_prefix: egress_allowed
+          cluster: original_dst
+    # NOTE: no default (catch-all) filter chain. A connection whose SNI matches
+    # nothing above finds no chain and is closed — that is the default-deny.
+
+  clusters:
+  - name: original_dst
+    type: ORIGINAL_DST
+    lb_policy: CLUSTER_PROVIDED
+    connect_timeout: 5s
