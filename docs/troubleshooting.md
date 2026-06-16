@@ -19,6 +19,22 @@ That's Seatbelt denying a filesystem operation.
 - Writing outside the workspace? That's the boundary. If a tool legitimately needs a path (e.g. `~/.cache/<tool>`), add it narrowly: Claude Code `sandbox.filesystem.allowWrite`, Codex `writable_roots`, or the profile's write allows. Never add `~/`.
 - Reading a secrets path? Working as intended. The agent does not need `~/.ssh` — see [the git/PAT setup](network-allowlists.md#git-credentials-https--scoped-pats).
 
+### `git` fails in a monorepo (`cannot lock ref … .git/… Operation not permitted`)
+
+The sandbox makes the directory you **launched the agent in** writable. In a monorepo, if you start the agent in a **subdirectory**, the repo's `.git/` is a level (or more) **up** — *outside* the writable workspace — so every git write (`commit`, `checkout -b`, anything that locks a ref) is denied, even though editing files in your subdir works fine. Confirm with `git rev-parse --git-dir`: if it resolves above your launch dir, that's the cause (not a `.git` protection or a `denyWrite`).
+
+**Write scope and context scope are separable**, so choose by how much of the repo you're actually working in — don't just move the launch dir for git's sake:
+
+- **Working within one package (keep context tight):** stay launched in the subdirectory and grant the sandbox write access to *just* the repo's `.git`. Because it's an absolute, per-developer path, put it in your personal `.claude/settings.local.json` (gitignored) — **not** the shared, committed `.claude/settings.json` (other devs have different home paths):
+  ```json
+  { "sandbox": { "filesystem": {
+    "allowWrite": ["/abs/path/to/monorepo/.git"],
+    "allowRead":  ["/abs/path/to/monorepo/.git"]
+  } } }
+  ```
+  (Include `allowRead` only if your managed policy sets `allowManagedReadPathsOnly`.) This keeps the agent focused on your subdir while letting git write the ref/commit — much narrower than making the whole monorepo the workspace. To also keep the `.git/hooks`/`.git/config` tampering vector closed, list the ref-bearing subpaths instead of all of `.git` (`…/.git/objects`, `…/.git/refs`, `…/.git/logs`, `…/.git/index`, `…/.git/HEAD`).
+- **Working across packages:** launch from the repo root — git works out of the box, but accept the wider context (broader file search, every `CLAUDE.md`, more tokens). Right when the task genuinely spans packages; heavier than it's worth for a focused change.
+
 ## Known Seatbelt-incompatible tools (sanctioned workarounds)
 
 | Tool | Symptom | Sanctioned workaround |
