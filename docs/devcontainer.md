@@ -1,44 +1,49 @@
 # Devcontainer: Uniform Isolation with Default-Deny Egress
 
-The container tier puts the **entire agent process** — not just its shell commands — behind one boundary, with an iptables firewall that drops every packet not destined for the allowlist. It is the only approach that covers all three tools identically, and the sanctioned way to run **Copilot agent mode in JetBrains** (which has no native sandbox).
+The container tier puts the **entire agent process** — not just its shell commands — behind one boundary, with default-deny egress (a hostname-filtering proxy by default; an IP firewall as the validated fallback). It is the only approach that covers all three tools identically, and the sanctioned way to run **Copilot agent mode in JetBrains** (which has no native sandbox).
 
 Based on Anthropic's reference implementation ([anthropics/claude-code/.devcontainer](https://github.com/anthropics/claude-code/tree/main/.devcontainer)), extended to bundle all three CLIs and bake in our managed policy.
 
-> **If you have Docker, prefer [Docker Sandboxes (`sbx`)](docker-sandbox.md) instead.** It delivers the same whole-process containment with a stronger boundary (microVM) and tighter egress control (hostname-level, TLS-terminating proxy vs. this tier's IP-resolved firewall). This hand-rolled devcontainer remains the option when Docker isn't available, or when you specifically want the VS Code/JetBrains devcontainer IDE-backend experience.
+> **If you have Docker, prefer [Docker Sandboxes (`sbx`)](docker-sandbox.md) instead.** It delivers the same whole-process containment with a stronger boundary (microVM) and tighter egress control (TLS-*terminating* hostname filtering vs. this tier's non-terminating CONNECT proxy / IP firewall). This hand-rolled devcontainer remains the option when Docker isn't available, or when you specifically want the VS Code/JetBrains devcontainer IDE-backend experience.
 
 ## What you get
 
 - All three CLIs (`claude`, `codex`, `copilot`) installed in an Ubuntu container; the agent, its MCP servers, hooks — everything — runs inside.
-- **Default-deny egress**: at container start, `init-firewall.sh` resolves the domains in `allowed-domains.txt` to IPs, adds GitHub's published web/api/git ranges, sets `DROP` policies, and **self-tests** (must fail to reach `example.com`, must reach `api.github.com`) before declaring success.
+- **Default-deny egress**: the shipped default is a hostname-filtering **CONNECT proxy** (`EGRESS_MODE=proxy`, [details](../configs/devcontainer/egress-proxy/README.md)); the validated fallback is an **IP firewall** (`init-firewall.sh` resolves `allowed-domains.txt` to IPs + GitHub ranges, `DROP` policy). Either mode **self-tests** at start (must reach `api.github.com`, must fail `example.com`) and refuses to run if egress isn't actually contained.
 - Managed policy baked into the image (`/etc/claude-code/managed-settings.json`, `/etc/codex/requirements.toml`) — not overridable from inside.
 - Host filesystem exposure limited to the bind-mounted workspace. Your `~/.ssh`, keychain, and shell env never enter the container.
 - Safe to run agents with auto-approval (`claude --dangerously-skip-permissions`, Copilot `--allow-all-tools`) **inside this container only** — the boundary is the container, and the non-root user satisfies Claude Code's root check.
 
-## Setup
+## Quick start (~10 minutes — mostly the one-time image build)
 
-1. **Container runtime.** Any Docker-compatible runtime works. Note Docker Desktop requires a paid license at organizations >250 employees/$10M revenue; **Colima** (`brew install colima docker && colima start`) is the free, scriptable alternative we default to.
+**Prerequisites:** a container runtime + your IDE.
+- **Runtime:** [Colima](https://github.com/abiosoft/colima) (`brew install colima docker && colima start`) — free, no Docker Desktop license; or Docker Desktop.
+- **IDE:** VS Code (Dev Containers extension), JetBrains (Gateway → Dev Containers), or the `@devcontainers/cli`.
 
-2. **Copy the six files into your repo** as `.devcontainer/` (the Dockerfile bakes the last two into the image):
-
+1. **Copy the devcontainer into your repo:**
    ```bash
    mkdir -p .devcontainer
    cp -r configs/devcontainer/{devcontainer.json,Dockerfile,init-firewall.sh,allowed-domains.txt,egress-proxy} .devcontainer/
    cp configs/claude-code/managed-settings.json .devcontainer/
    cp configs/codex/requirements.toml .devcontainer/
    ```
+2. **Trim `allowed-domains.txt`** to the registries your project uses — it is the entire egress policy (changes go through PR review like any code).
+3. **Open it in your IDE:**
+   - **VS Code:** Command Palette → *Dev Containers: Reopen in Container*.
+   - **JetBrains:** Gateway → Dev Containers (runs the IDE backend *inside* the container — this is what contains Copilot agent mode, which has no native sandbox).
+   - **CLI:** `npm i -g @devcontainers/cli && devcontainer up --workspace-folder .`
+4. **Confirm the egress self-test passed** in the startup log (reaches `api.github.com`, blocked from `example.com`). If it fails, the container refuses to pretend it's protected — see the fallback below.
+5. **Pick your assistant and log in** (first run only; credentials persist in named volumes, never on the host):
+   Claude Code → `claude` · Codex → `codex login` · Copilot → `copilot` then `/login`.
 
-3. **Adjust `allowed-domains.txt`** for the project's stack (keep only the registries you use). This file is the project's entire egress policy — changes to it go through PR review like any code.
+You're done: the agent — and its MCP servers/hooks — can reach only the allowlisted domains and can't see your host secrets. Auto-approval (`claude --dangerously-skip-permissions`, Copilot `--allow-all-tools`) is safe **inside this container**.
 
-4. **Open in the container:**
-   - VS Code: "Dev Containers: Reopen in Container"
-   - IntelliJ/JetBrains: Settings → Dev Containers, or the Gateway; JetBrains' devcontainer support runs the IDE backend inside the container, which is exactly what contains Copilot agent mode
-   - CLI only: `devcontainer up --workspace-folder .` (`npm i -g @devcontainers/cli`)
-
-5. **Authenticate the tools inside the container** (first run only; credentials persist in the named volumes, never on the host): `claude` → login flow, `codex login`, `copilot` → `/login`.
-
-Watch the `postStartCommand` output: if the firewall self-test fails, the container refuses to pretend it's protected — fix before working.
+> [!IMPORTANT]
+> **Egress mode = CONNECT proxy (experimental).** This devcontainer ships the hostname-filtering [CONNECT proxy](../configs/devcontainer/egress-proxy/README.md) by default (`EGRESS_MODE=proxy`) — no IP drift, robust to ECH. It is **not yet validated on a real build**; step 4's self-test tells you whether it's working. **If the image build fails (installing Envoy) or the self-test fails, fall back to the validated IP firewall:** in `.devcontainer/devcontainer.json` set `"EGRESS_MODE": "ipset"` and `build.args.EGRESS_PROXY` to `"false"`, then rebuild. The IP firewall is the proven path and the rest of this page describes it.
 
 ## How the firewall works (and its honest limits)
+
+*This describes the **fallback IP-firewall mode** (`EGRESS_MODE=ipset`). The shipped default is the hostname-filtering [CONNECT proxy](../configs/devcontainer/egress-proxy/README.md) — see the quick-start callout above.*
 
 ```
 allowed-domains.txt ──▶ dig (resolve at start) ──▶ ipset allowed-domains
@@ -55,7 +60,7 @@ Trade-offs versus the hostname-filtering proxies of Tier 1, stated plainly:
 2. **Range over-permission.** GitHub's published CIDR ranges allow all of GitHub — consistent with our policy, but remember [the residual risk](threat-model.md#residual-risks--read-this-before-calling-anything-secure): allowed multi-tenant hosts are still exfil channels.
 3. **DNS needs its own control (layered here).** The IP-based allowlist doesn't inspect DNS. By default the firewall now pins DNS egress to the container's configured resolver(s) — blocking direct queries to an arbitrary resolver. For full coverage, set `ENABLE_DNS_ALLOWLIST=true` to run a local dnsmasq that resolves only allowlisted domains and refuses the rest, which closes recursive DNS tunneling (opt-in, requires the bundled dnsmasq, currently **untested** — verify resolution first). The built-in proxy tiers and Docker Sandboxes still handle DNS more cleanly ([details](threat-model.md#residual-risks--read-this-before-calling-anything-secure)).
 
-**Want hostname filtering on this tier?** Trade-offs 1–2 are inherent to IP matching. Two ways to get hostname-based egress instead: use **[Docker Sandboxes](docker-sandbox.md)** (TLS-*terminating* hostname filtering — the strongest option, and the preferred Tier 2 where Docker is available), or enable the devcontainer's **experimental, opt-in [CONNECT-proxy egress mode](../configs/devcontainer/egress-proxy/README.md)** — an Envoy explicit forward proxy that allowlists the **cleartext `CONNECT` host** (no IP resolution, so no drift, and robust to ECH since it never needs the encrypted SNI), regenerated from the same `allowed-domains.txt`. It still doesn't defeat domain fronting ([residual risk #2](threat-model.md#residual-risks--read-this-before-calling-anything-secure)) — only TLS termination does — so the default IP firewall stays the simple, no-MITM baseline.
+**These trade-offs are why the shipped default is the [CONNECT proxy](../configs/devcontainer/egress-proxy/README.md), not this IP firewall.** The proxy matches by hostname (no drift, no CDN-range over-permit) and is ECH-robust, with an optional TLS-terminating sub-mode that also defeats domain fronting ([residual risk #2](threat-model.md#residual-risks--read-this-before-calling-anything-secure)). Use this IP-firewall mode (`EGRESS_MODE=ipset`) when you want the **simplest, proven, no-MITM** path, or if the (experimental) proxy doesn't come up. Either way, for the strongest egress with the least effort, **[Docker Sandboxes](docker-sandbox.md)** TLS-terminates out of the box.
 
 **Enterprise GitHub caveat.** The `api.github.com/meta` fetch above is correct only for public `github.com`. On a self-hosted GitHub Enterprise Server, run the firewall with `SKIP_GITHUB_META=true`, `EXTRA_CIDRS="<your-server-CIDR>"`, and `VERIFY_REACHABLE_URL="https://<your-host>"` (all read from the environment — no script edit). See [Enterprise GitHub](network-allowlists.md#enterprise-github) for the hostnames to add alongside it.
 

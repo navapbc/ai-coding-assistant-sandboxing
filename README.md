@@ -59,7 +59,7 @@ Two design notes so this stays robust:
 - **Claude Code** → run `/sandbox`, then copy [`configs/claude-code/settings.user.json`](configs/claude-code/settings.user.json) to `~/.claude/settings.json`. Done in 5 minutes. **For host-level default-deny egress (most solo devs want this), also run `./setup.sh --managed`** — the user baseline alone is *not* default-deny ([why & how](docs/enforcement.md#single-machine-solo-developer-no-mdm)). [Guide](docs/claude-code.md)
 - **Codex CLI** → copy [`configs/codex/config.toml`](configs/codex/config.toml) to `~/.codex/config.toml`. [Guide](docs/codex.md)
 - **Copilot CLI** → run `/sandbox enable` in a session (public preview); for VS Code set [`configs/copilot/vscode-settings.json`](configs/copilot/vscode-settings.json). **Copilot agent mode in JetBrains has no sandbox — use the [devcontainer](docs/devcontainer.md).** [Guide](docs/copilot.md)
-- **Any tool, strongest isolation** → the [devcontainer](docs/devcontainer.md) in [`configs/devcontainer/`](configs/devcontainer/), or — if you have Docker — [Docker Sandboxes](docs/docker-sandbox.md) (`sbx`), the preferred Tier 2 for that subset.
+- **Any tool, any IDE — strongest isolation** → the [devcontainer](docs/devcontainer.md) ([`configs/devcontainer/`](configs/devcontainer/)): a **~10-minute [quick start](docs/devcontainer.md#quick-start-10-minutes--mostly-the-one-time-image-build)** to a sandboxed agent in VS Code or JetBrains — the whole process behind default-deny egress. Or — if you have Docker — [Docker Sandboxes](docs/docker-sandbox.md) (`sbx`), the preferred Tier 2 for that subset.
 
 ## Documentation map
 

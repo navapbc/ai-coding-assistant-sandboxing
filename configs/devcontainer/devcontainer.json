@@ -3,7 +3,7 @@
   "build": {
     "dockerfile": "Dockerfile",
     "args": {
-      "EGRESS_PROXY": "false"
+      "EGRESS_PROXY": "true"
     }
   },
   "runArgs": [
@@ -22,8 +22,11 @@
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "DISABLE_AUTOUPDATER": "1",
-    "EGRESS_MODE": "ipset",
-    "EGRESS_TLS_TERMINATE": "false"
+    "EGRESS_MODE": "proxy",
+    "EGRESS_TLS_TERMINATE": "false",
+    "HTTP_PROXY": "http://127.0.0.1:15001",
+    "HTTPS_PROXY": "http://127.0.0.1:15001",
+    "NO_PROXY": "localhost,127.0.0.1,::1"
   },
   "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
   "waitFor": "postStartCommand",
