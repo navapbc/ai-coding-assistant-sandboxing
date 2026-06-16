@@ -48,7 +48,7 @@ RUN chmod 755 /usr/local/bin/init-firewall.sh \
     && echo "vscode ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/init-firewall \
     && chmod 440 /etc/sudoers.d/init-firewall
 
-# --- Experimental opt-in: SNI-filtering egress proxy (EGRESS_MODE=proxy) ------
+# --- Experimental opt-in: Envoy CONNECT forward proxy (EGRESS_MODE=proxy) -----
 # The scripts are always copied (tiny, unused unless EGRESS_MODE=proxy). Envoy +
 # its run-as user are installed ONLY when built with --build-arg EGRESS_PROXY=true,
 # so the default image isn't bloated. init-firewall.sh hands off to this when

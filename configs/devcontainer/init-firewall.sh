@@ -18,8 +18,8 @@ ALLOWED_DOMAINS_FILE="${ALLOWED_DOMAINS_FILE:-/usr/local/etc/allowed-domains.txt
 
 # --- Egress mode switch --------------------------------------------------
 # EGRESS_MODE=ipset (default): the IP-resolved firewall in this script.
-# EGRESS_MODE=proxy: hand off to the experimental SNI-filtering Envoy proxy
-# (hostname-matched, immune to CDN IP drift). Requires the image built with
+# EGRESS_MODE=proxy: hand off to the experimental Envoy CONNECT forward proxy
+# (hostname-matched, immune to CDN IP drift, robust to ECH). Requires the image built with
 # Envoy + the egress-proxy scripts (Dockerfile --build-arg EGRESS_PROXY=true).
 # See configs/devcontainer/egress-proxy/README.md.
 EGRESS_MODE="${EGRESS_MODE:-ipset}"
