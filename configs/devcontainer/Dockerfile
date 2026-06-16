@@ -60,6 +60,7 @@ ARG EGRESS_PROXY=false
 ARG ENVOY_VERSION=1.31.0
 RUN if [ "$EGRESS_PROXY" = "true" ]; then \
         set -eux; \
+        apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*; \
         curl -fsSL https://func-e.io/install.sh | bash -s -- -b /usr/local/bin; \
         func-e use "${ENVOY_VERSION}"; \
         install -m 0755 "$(func-e which)" /usr/local/bin/envoy; \

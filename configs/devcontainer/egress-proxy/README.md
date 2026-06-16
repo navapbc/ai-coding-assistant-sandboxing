@@ -28,7 +28,7 @@ Fronting is an *inner-`Host`* attack and CONNECT gates the *outer* host. An agen
 
 Fronting is only caught by reading the real `Host`, which means **terminating** the TLS (a MITM), not tunnelling it. Honest constraint: **stock Envoy can't mint per-host certs on the fly** (it terminates only with pre-provisioned certs), so this isn't a config flag. Two routes:
 
-- **Route 1 — pure Envoy, pre-minted certs (works because the allowlist is finite).** At start: generate a session CA and **one leaf cert per allowlisted host** signed by it, install the CA in the container trust store, and render an Envoy config that — per host — TLS-terminates with that leaf (SNI-matched), **allowlists the decrypted `Host`**, and re-originates TLS upstream via `dynamic_forward_proxy`. The fiddly part is wiring the post-`CONNECT` stream into a TLS-terminating internal listener — **validate this carefully**.
+- **Route 1 — pure Envoy, pre-minted certs (works because the allowlist is finite).** At start: generate a session CA and **one leaf cert per allowlisted host** signed by it, install the CA in the container trust store, and render an Envoy config that TLS-terminates (cert SNI-selected from the pre-minted set), **allowlists the decrypted `Host`**, and re-originates TLS upstream via `dynamic_forward_proxy`. The fiddly part is wiring the post-`CONNECT` stream into a TLS-terminating internal listener — **validate carefully**. **This is now wired:** set `EGRESS_TLS_TERMINATE=true` and `init-egress-proxy.sh` does the CA + per-host cert generation and renders [`envoy-mitm.yaml`](envoy-mitm.yaml). It is **unvalidated** — work through the verify list in that file's header banner.
 
   Cert generation sketch (run in `init-egress-proxy.sh` when `EGRESS_TLS_TERMINATE=true`):
   ```bash
@@ -64,6 +64,8 @@ The image and `init-firewall.sh` already support this; flip two values in `devco
 ```
 A tool that ignores the proxy can't reach the network (iptables blocks direct egress) — it fails closed, which is the safe outcome.
 
+3. **(Optional) anti-fronting MITM** — add `containerEnv.EGRESS_TLS_TERMINATE: "true"` to switch from CONNECT pass-through to the TLS-terminating mode above. Read its caveats first (real MITM; pinned-cert hosts break; unvalidated).
+
 ## Validate before relying
 
 On a real build, confirm:
@@ -88,5 +90,6 @@ Same model, same egress lockdown (HTTP_PROXY + iptables default-deny), same ECH/
 
 ## Files
 
-- [`envoy.yaml`](envoy.yaml) — Envoy as a CONNECT forward proxy: allowlist vhost (CONNECT authorities) + `dynamic_forward_proxy`, catch-all `403`.
-- [`init-egress-proxy.sh`](init-egress-proxy.sh) — regenerates the authorities from `allowed-domains.txt`, sets the proxy env + iptables default-deny-except-proxy, launches Envoy, self-tests.
+- [`envoy.yaml`](envoy.yaml) — CONNECT forward proxy (pass-through): allowlist vhost (CONNECT authorities) + `dynamic_forward_proxy`, catch-all `403`.
+- [`envoy-mitm.yaml`](envoy-mitm.yaml) — TLS-terminating variant (`EGRESS_TLS_TERMINATE=true`): CONNECT → internal-listener TLS-termination (pre-minted per-host certs) → `Host` allowlist → re-originate. Experimental/unvalidated.
+- [`init-egress-proxy.sh`](init-egress-proxy.sh) — renders the chosen config from `allowed-domains.txt` (and mints the CA + per-host certs in terminate mode), sets the proxy env + iptables default-deny-except-proxy, launches Envoy, self-tests.

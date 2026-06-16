@@ -22,7 +22,8 @@
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "DISABLE_AUTOUPDATER": "1",
-    "EGRESS_MODE": "ipset"
+    "EGRESS_MODE": "ipset",
+    "EGRESS_TLS_TERMINATE": "false"
   },
   "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
   "waitFor": "postStartCommand",

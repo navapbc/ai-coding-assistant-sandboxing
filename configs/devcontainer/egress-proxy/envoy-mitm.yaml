@@ -1,0 +1,145 @@
+# Envoy egress gateway — TLS-TERMINATING CONNECT forward proxy (anti-fronting).
+#
+# ⚠️⚠️ EXPERIMENTAL / UNVALIDATED. This is the hardest config in the repo and it
+# is NOT tested. It is a reviewed starting point for the opt-in
+# EGRESS_TLS_TERMINATE=true mode (see README.md "TLS-terminating mode"). Stock
+# Envoy can't mint certs on the fly, so init-egress-proxy.sh pre-mints one leaf
+# per allowlisted host from a session CA and injects them below. If this config
+# fights you, a purpose-built terminator (mitmproxy / Squid ssl-bump) or Docker
+# Sandboxes is the road-tested path — see README.
+#
+# VALIDATE on a real build, especially:
+#  - CONNECT payload actually reaching the internal listener via connect_config;
+#  - DownstreamTlsContext selecting the right pre-minted cert by SNI;
+#  - upstream re-origination SNI (auto_sni) matching the real host;
+#  - the deny vhost returning 403 for a non-allowlisted Host (fronting attempt).
+#
+# Flow: client -> CONNECT host:443 (allowlisted authority) -> internal listener
+# TERMINATES the tunnelled TLS with host's pre-minted cert -> HTTP is decrypted,
+# the real Host is allowlisted -> re-originated upstream over fresh TLS. Because
+# the Host is now visible, domain fronting (Host != allowed) is denied.
+
+bootstrap_extensions:
+- name: envoy.bootstrap.internal_listener
+  typed_config:
+    "@type": type.googleapis.com/envoy.extensions.bootstrap.internal_listener.v3.InternalListener
+
+static_resources:
+  listeners:
+  # 1) Explicit CONNECT port. Allowlist the CONNECT authority, then pipe the
+  #    tunnelled bytes into the TLS-terminating internal listener.
+  - name: connect_proxy
+    address: { socket_address: { address: 127.0.0.1, port_value: 15001 } }
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: connect_in
+          upgrade_configs:
+          - upgrade_type: CONNECT
+          route_config:
+            name: connect_routes
+            virtual_hosts:
+            - name: allowed_authorities
+              domains:
+                # @@CONNECT_AUTHORITIES@@  (host:443 list; injected by init-egress-proxy.sh)
+                - "example.invalid:443"
+              routes:
+              - match: { connect_matcher: {} }
+                route:
+                  cluster: tls_terminate_internal
+                  upgrade_configs:
+                  - upgrade_type: CONNECT
+                    connect_config: {}
+            - name: deny
+              domains: ["*"]
+              routes:
+              - match: { connect_matcher: {} }
+                direct_response: { status: 403 }
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  # 2) Internal listener: TERMINATE the client's TLS (cert chosen by SNI from the
+  #    pre-minted set), allowlist the decrypted Host, re-originate upstream.
+  - name: tls_terminate
+    internal_listener: {}
+    listener_filters:
+    - name: envoy.filters.listener.tls_inspector
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
+    filter_chains:
+    - transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+          common_tls_context:
+            tls_certificates:
+              # @@TLS_CERTIFICATES@@  (one cert/key pair per host; injected by init-egress-proxy.sh)
+              - certificate_chain: { filename: /tmp/egress-certs/example.invalid.crt }
+                private_key: { filename: /tmp/egress-certs/example.invalid.key }
+      filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: mitm
+          route_config:
+            name: host_allow
+            virtual_hosts:
+            - name: allowed_hosts
+              domains:
+                # @@ALLOWED_HOSTS@@  (bare host list; injected by init-egress-proxy.sh)
+                - "example.invalid"
+              routes:
+              - match: { prefix: "/" }
+                route: { cluster: upstream_forward }
+            - name: deny_hosts        # any other Host (e.g. a fronting attempt) -> 403
+              domains: ["*"]
+              routes:
+              - match: { prefix: "/" }
+                direct_response:
+                  status: 403
+                  body: { inline_string: "egress: host not on allowlist\n" }
+          http_filters:
+          - name: envoy.filters.http.dynamic_forward_proxy
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig
+              dns_cache_config:
+                name: mitm_dns
+                dns_lookup_family: V4_PREFERRED
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+  - name: tls_terminate_internal
+    load_assignment:
+      cluster_name: tls_terminate_internal
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              envoy_internal_address: { server_listener_name: tls_terminate }
+  - name: upstream_forward
+    lb_policy: CLUSTER_PROVIDED
+    connect_timeout: 5s
+    cluster_type:
+      name: envoy.clusters.dynamic_forward_proxy
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+        dns_cache_config:
+          name: mitm_dns
+          dns_lookup_family: V4_PREFERRED
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+    # auto_sni makes the re-originated TLS use the Host as SNI (validate this).
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        upstream_http_protocol_options: { auto_sni: true }
+        explicit_http_config:
+          http_protocol_options: {}
