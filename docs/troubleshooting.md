@@ -32,8 +32,10 @@ The sandbox makes the directory you **launched the agent in** writable. In a mon
     "allowRead":  ["/abs/path/to/monorepo/.git"]
   } } }
   ```
-  (Include `allowRead` only if your managed policy sets `allowManagedReadPathsOnly`.) This keeps the agent focused on your subdir while letting git write the ref/commit — much narrower than making the whole monorepo the workspace. To also keep the `.git/hooks`/`.git/config` tampering vector closed, list the ref-bearing subpaths instead of all of `.git` (`…/.git/objects`, `…/.git/refs`, `…/.git/logs`, `…/.git/index`, `…/.git/HEAD`).
+  (Include `allowRead` only if your managed policy sets `allowManagedReadPathsOnly`.) **Allow the whole `.git`** so every git command just works — commit, branch, merge, rebase, stash, gc. *Don't* allowlist individual `.git` subpaths: git writes an operation-dependent set (`MERGE_HEAD`, `rebase-merge/`, `packed-refs`, reflogs, lockfiles, …), so a partial list breaks merge/rebase/gc with cryptic `Operation not permitted` errors. This still keeps the agent's *context* on your subdir — it's narrower than making the whole monorepo the workspace.
 - **Working across packages:** launch from the repo root — git works out of the box, but accept the wider context (broader file search, every `CLAUDE.md`, more tokens). Right when the task genuinely spans packages; heavier than it's worth for a focused change.
+
+> **Optional, higher-friction tightening — skip it unless this vector is in your threat model.** You can also `denyWrite` `…/.git/hooks` and `…/.git/config` to block tampering that executes later in your *unsandboxed* shell (a hook or `credential.helper` a hijacked agent plants there). The cost is real day-to-day friction: `git config`, `git remote`, `git push -u`/tracking, and hook installers (husky, pre-commit) stop working. With `git push` already gated and egress default-deny, most teams won't want it.
 
 ## Known Seatbelt-incompatible tools (sanctioned workarounds)
 
