@@ -42,6 +42,17 @@ The shipped managed file uses the **strict** posture (`allowManagedDomainsOnly: 
 
 Whichever posture you run, make it a recorded decision rather than a drift, and re-run the egress check after deploying. **Note:** `allowManagedDomainsOnly` is honored *only* from managed settings — a solo developer using just `~/.claude/settings.json` cannot reach strict default-deny from user settings alone. Deploy this managed file (MDM, or `sudo` for a single machine — see below) or use the [devcontainer](devcontainer.md) / `srt` tier, which are unconditional default-deny regardless of posture.
 
+### Managed settings apply machine-wide
+
+The managed file governs **every project on the machine**, non-overridably — there is no per-repo managed scope. This is deliberate (it's the fleet floor), and it has a direct consequence: because `allowManagedDomainsOnly` is managed-only, **hard default-deny egress on the host built-in sandbox *requires* this machine-wide file.** You can't get strict, allowlist-enforced egress in Claude Code's built-in tier any other way — so if that's a hard requirement, keep the managed file; it will (correctly) apply to all your repos.
+
+The collateral that surprises solo devs — and how to keep the hard egress while removing the friction (you don't have to choose):
+
+- **Other repos hit the allowlist.** Every repo is now clamped to the managed `allowedDomains`. Fix: make the allowlist cover what your repos legitimately fetch — add domains to [`configs/allowed-domains.manifest.json`](../configs/allowed-domains.manifest.json) and the managed file (the manifest + `check-config-consistency.py` keep them in sync). The allowlist breadth is the maintenance cost of machine-wide strict; it does **not** require relaxing egress.
+- **Monorepo git breaks** (agent launched in a subdir, `.git` a level up). Fix per-repo: add the git root's `.git` to `sandbox.filesystem.allowWrite` in that repo's `.claude/settings.local.json`. Write-allow arrays **merge across scopes** (see the precedence note above), so this takes effect *even under* the machine-wide managed file — no egress change. See [agent-git.md](agent-git.md).
+
+If instead you want hard egress on **only some** repos (not the whole machine), don't use machine-wide managed at all — run those repos in the [devcontainer](devcontainer.md) / Docker Sandboxes / `srt`, which enforce default-deny egress **per project**, in-container, without governing the rest of your machine.
+
 ### Single machine (solo developer, no MDM)
 
 This isn't only a fleet concern — **most solo developers want host-level default-deny and have no MDM.** The managed file is still how you get it; just deploy it locally with `sudo` instead of a push. The installer has an opt-in flag:

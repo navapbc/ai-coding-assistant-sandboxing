@@ -75,6 +75,7 @@ Two design notes so this stays robust:
 | [devcontainer.md](docs/devcontainer.md) | Running agents in a container with a default-deny egress firewall |
 | [docker-sandbox.md](docs/docker-sandbox.md) | Docker Sandboxes (`sbx`) — microVM + hostname-filtering proxy, for the Docker-licensed subset |
 | [git-credentials.md](docs/git-credentials.md) | Storing least-privilege GitHub tokens on macOS (1Password / Keychain) — and keeping them out of your shell environment |
+| [agent-git.md](docs/agent-git.md) | How an agent commits/branches in each tier, the monorepo `.git`-in-workspace fix, and how push is gated — consistently across tools |
 | [network-allowlists.md](docs/network-allowlists.md) | The full domain reference: what's allowed, what's never allowed, and why |
 | [enforcement.md](docs/enforcement.md) | Platform team: MDM, managed settings, config precedence, defense-in-depth layering |
 | [policy-matrix.md](docs/policy-matrix.md) | The one-page approved / not-approved matrix per tool and surface |
