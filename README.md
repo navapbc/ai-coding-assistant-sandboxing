@@ -1,7 +1,11 @@
 # Sandboxing AI Coding Assistants on macOS
 
 > [!WARNING]
-> **Experimental — work in progress.** This repo is an early, evolving reference, not a finished standard. The tools it covers (especially Copilot's local sandbox and Docker Sandboxes) are themselves new and changing, so configs and guidance here may be incomplete or out of date — **verify against the linked vendor docs before relying on anything**, and treat the configs as starting points to review, not drop-in guarantees. Expect breaking changes. Feedback and PRs welcome.
+> **Experimental — work in progress.** This repo is an early, evolving reference, not a finished standard. Expect breaking changes; feedback and PRs welcome.
+>
+> **These sandboxing tools are immature and have real limitations.** The mechanisms this repo relies on (Copilot's local sandbox, Docker Sandboxes, Seatbelt profiles, hostname-based egress proxies) are new, changing fast, and **not designed to contain a determined adversary**. Where they help, they raise the cost of an attack rather than remove it — and whether any given config helps *at all* depends on your version, your setup, and bugs neither you nor the vendor have found yet. Treat the configs here as starting points to review and adapt, **not drop-in guarantees**.
+>
+> **Do not develop a false sense of security.** A sandbox that is enabled is not the same as a sandbox that is working as you assume, and "more secure than nothing" is not a property you can take for granted. **Verify every claim before you rely on it** — against the linked vendor docs *and* by testing the actual behavior on your own machine (see the [egress check](docs/troubleshooting.md#verify-your-egress-is-actually-default-deny) and [threat-model.md](docs/threat-model.md)). Vendor docs can be wrong or out of date, defaults change between versions, and a config that protected you yesterday may silently stop doing so after an update. Assume nothing is enforced until you have watched it block something.
 
 **Status:** experimental · last reviewed 2026-06-13
 
