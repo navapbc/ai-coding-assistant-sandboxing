@@ -88,6 +88,6 @@ Two design notes so this stays robust:
 ## Principles
 
 1. **Default-deny egress, everywhere.** There is no deny list — anything not on the short allowlist is blocked. Cloud-provider storage domains (`*.amazonaws.com`, `*.googleapis.com`, `*.blob.core.windows.net`, …) are **never** allowlisted: they are multi-tenant endpoints where an attacker controls a bucket.
-2. **Contain, don't enumerate.** No command allowlisting. The sandbox boundary makes arbitrary commands safe to run; only boundary-piercing (`docker`) and outward-acting (`git push`) commands keep a human in the loop.
+2. **Contain, don't enumerate.** No command allowlisting. The bet is that the sandbox boundary — not a list of approved commands — is what limits the blast radius, so commands run freely *within* it; only boundary-piercing (`docker`) and outward-acting (`git push`) commands keep a human in the loop. How much that contains depends on the boundary actually holding — see principle 4.
 3. **Fast unblock or it doesn't survive.** Allowlist changes are a one-line, code-reviewed PR — hours, not tickets. A slow exception process is how developers end up disabling security tools.
 4. **Honest about residual risk.** The built-in proxies filter by hostname without inspecting TLS (Docker Sandboxes is the exception — it TLS-terminates); `github.com` is itself multi-tenant. See [threat-model.md](docs/threat-model.md) before treating any of this as absolute.
