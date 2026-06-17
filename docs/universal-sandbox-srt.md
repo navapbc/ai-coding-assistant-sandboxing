@@ -2,7 +2,7 @@
 
 When a tool has no built-in sandbox (Copilot CLI pre-GA, any other CLI), or you want one consistent wrapper for everything, two native-macOS options live here. Both follow the same proven architecture:
 
-> **Seatbelt blocks ALL direct egress at the kernel; a proxy outside the sandbox enforces the domain allowlist.** Seatbelt itself cannot filter by hostname — the kernel sees sockets, not DNS names. A program that ignores `HTTPS_PROXY` doesn't escape; it simply has no network. Failure is closed.
+> **Seatbelt is configured to block direct egress at the kernel; a proxy outside the sandbox enforces the domain allowlist.** Seatbelt itself cannot filter by hostname — the kernel sees sockets, not DNS names. A program that ignores `HTTPS_PROXY` doesn't escape the allowlist; it simply has no network. The design fails closed — assuming the profile loads and the kernel boundary holds.
 
 ## Option A (preferred): Anthropic `sandbox-runtime` (`srt`)
 

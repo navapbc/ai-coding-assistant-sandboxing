@@ -12,7 +12,7 @@ Based on Anthropic's reference implementation ([anthropics/claude-code/.devconta
 - **Default-deny egress**: the shipped default is a hostname-filtering **CONNECT proxy** (`EGRESS_MODE=proxy`, [details](../configs/devcontainer/egress-proxy/README.md)); the validated fallback is an **IP firewall** (`init-firewall.sh` resolves `allowed-domains.txt` to IPs + GitHub ranges, `DROP` policy). Either mode **self-tests** at start (must reach `api.github.com`, must fail `example.com`) and refuses to run if egress isn't actually contained.
 - Managed policy baked into the image (`/etc/claude-code/managed-settings.json`, `/etc/codex/requirements.toml`) — not overridable from inside.
 - Host filesystem exposure limited to the bind-mounted workspace. Your `~/.ssh`, keychain, and shell env never enter the container.
-- Safe to run agents with auto-approval (`claude --dangerously-skip-permissions`, Copilot `--allow-all-tools`) **inside this container only** — the boundary is the container, and the non-root user satisfies Claude Code's root check.
+- Auto-approval (`claude --dangerously-skip-permissions`, Copilot `--allow-all-tools`) is more defensible here than on the host — **inside this container only** — because the container is the boundary and the non-root user satisfies Claude Code's root check. The blast radius is what the container can reach, not zero.
 
 ## Quick start (~10 minutes — mostly the one-time image build)
 
