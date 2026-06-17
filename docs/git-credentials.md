@@ -66,6 +66,7 @@ The helper ships with Apple Git. On your next `git push`, paste the PAT once; gi
 
 - [network-allowlists.md](network-allowlists.md#git-credentials-https--scoped-pats) — per-tier recipes for when the **agent itself** must run authenticated git inside a sandbox (push from the unsandboxed side, inject a scoped token with `--pass-env`, or Docker Sandboxes' proxy injection where the token never enters the VM).
 - [threat-model.md](threat-model.md#residual-risks--read-this-before-calling-anything-secure) — why `github.com` push rights are an exfiltration channel, and why scoping is the control that closes it.
+- [troubleshooting.md](troubleshooting.md#opening-a-pr-or-other-github-api-work-when-gh-fails-tls) — `gh pr create` fails TLS under the sandbox (`x509: OSStatus -26276`); use the `curl`/REST route to open the PR instead.
 
 ## References (source of truth)
 
