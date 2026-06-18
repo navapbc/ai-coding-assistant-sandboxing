@@ -55,6 +55,8 @@ Claude Code ships an OS-level Bash sandbox (Seatbelt on macOS) with a domain-fil
 
 Per-project additions (package registries, dev-server port binding) go in the repo's `.claude/settings.json` — see [`configs/claude-code/settings.json`](../configs/claude-code/settings.json) for a committed example with a tight read scope (`denyRead: ["~/"]`, `allowRead: ["."]`).
 
+**Monorepo gotcha:** launching `claude` in a subpackage scopes writes to that subdir, so the root `.git` falls out of scope and `git commit`/`checkout -b` fail. Launch at the repo root, or pass `--add-dir <root>` — see [agent-git.md](agent-git.md#claude-code-in-a-monorepo-subdirectory).
+
 ## Scope: what the sandbox does and doesn't cover
 
 | Surface | Covered? |
