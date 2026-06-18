@@ -13,7 +13,7 @@ For an AI agent to do version control — **commit, branch** — without frictio
 
 | Tier | Agent commit/branch | `.git` default | Get the git root in scope (monorepo fix) | Push control |
 |------|:---:|---|---|---|
-| **Claude Code** (CLI + IDE ext) | ✅ | writable | launch at the repo root, or `sandbox.filesystem.allowWrite: ["<root>/.git"]` in personal `settings.local.json` | `git push` ask-prompt |
+| **Claude Code** (CLI + IDE ext) | ✅ | writable | launch at the repo root; `--add-dir <root>` at startup; or `sandbox.filesystem.allowWrite: ["<root>/.git"]` in personal `settings.local.json`. Linked worktrees get the shared `.git` free — [details](#claude-code-in-a-monorepo-subdirectory) | `git push` ask-prompt |
 | **Codex** (CLI + VS Code) | ✅ *(opt-in)* | **read-only by default** | add the root to `writable_roots` **and** a profile rule: `[permissions.<p>.filesystem.":workspace_roots"]` → `".git/" = "write"` | network off in baseline; `--ask-for-approval on-request` prompts on push |
 | **Copilot CLI** (`/sandbox enable`) | ✅ | writable | `/add-dir <repo-root>` (or the `/sandbox` Filesystem tab) | `--deny-tool 'shell(git push)'` (hard deny) or the default per-call prompt |
 | **Copilot VS Code** (agent mode) | ✅ | writable | `chat.agent.sandbox.fileSystem.mac` → `allowWrite: ["<root>/.git"]` | default-deny egress (push fails unless the host is allowlisted); no per-command prompt |
@@ -21,6 +21,17 @@ For an AI agent to do version control — **commit, branch** — without frictio
 | **Docker Sandbox** (`--clone`) | ✅ (in-VM clone) | host `.git` read-only | run from the **main checkout**; commits land in the in-VM clone, pulled back via the `sandbox-<name>` git remote | same (credential injection) |
 | **Devcontainer** | ✅ | writable (bind mount) | open the repo **root** as the devcontainer workspace | container-local creds + egress firewall |
 | **JetBrains + Copilot** | ❌ no host sandbox | — | use the [devcontainer](devcontainer.md) | → devcontainer |
+
+## Claude Code in a monorepo subdirectory
+
+The most common version of this problem, and the one with the lowest-friction fix. Claude Code scopes writes to the directory you launch in (plus `$TMPDIR`), so launching inside a subpackage leaves the root `.git` out of scope and breaks every git write. Four ways to get it back, simplest first:
+
+1. **Launch at the git root.** `cd` to the repo root, run `claude`, then `cd` into your subpackage *inside the session*. The writable scope is fixed at launch to the root, so it still contains `.git`; you work in the subdir and git keeps working. Zero config, travels with every clone. The only cost is that Claude's default read/edit scope is the whole monorepo.
+2. **`--add-dir <git-root>` at startup.** E.g. `claude --add-dir ../` from a one-level-deep subdir. Verified: this widens the sandbox **write** scope (not just tool read access), so commit/branch work from the subdir. Runtime-only, no settings file — alias it if your layout is consistent.
+3. **`sandbox.filesystem.allowWrite: ["<root>/.git"]`** in the subdir's `.claude/settings.local.json`. Persistent, but the absolute path is per-checkout, so it does **not** travel with a fresh clone.
+4. **Linked git worktree.** When cwd is a linked worktree (`claude --worktree <name>`), Claude Code grants writes to the main repo's shared `.git` automatically — no flag or setting. (Verified against the [sandboxing docs](https://code.claude.com/docs/en/sandboxing).)
+
+There is **no portable global token** for "this repo's git root" — `allowWrite` takes absolute, `~/`, or scope-relative paths only, with no glob or env-var expansion — so a single machine-wide `~/.claude/settings.json` line can't cover every monorepo. Options 1 and 2 are the ones that work across clones without per-repo edits. Whichever you pick, the `git push` ask-prompt plus a repo-scoped PAT stay the exfiltration boundary; widening write scope to `.git` doesn't change that.
 
 ## Codex is the one default-restrictive tier
 
