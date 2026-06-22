@@ -38,6 +38,8 @@ codex exec "run: curl https://example.com"     # no network inside the sandbox
 
 Codex's newer **permission profiles** replace `sandbox_mode` (configure one system, never both) and add proxy-enforced domain allowlists — the commented block in [`configs/codex/config.toml`](../configs/codex/config.toml) shows a profile that enables network for exactly our allowed registries and GitHub hosts, with deny-wins semantics. Use it when a project genuinely needs sandboxed commands to fetch dependencies without per-command approval; otherwise stay on the simpler `network_access = false` baseline.
 
+**Per-path read denials** are also a permission-profiles feature, not a `sandbox_mode` one: the same commented block denies `**/.env*`, `**/secrets/**`, `**/*.key`, and vim swap files (`**/*.sw[a-p]`). Two limits to know: (1) the plain `workspace-write` baseline grants **broad read access** and has no per-path read-deny — these `deny` entries exist only under permission profiles; (2) the denies are **workspace-scoped**, so home-dir secrets that live outside the workspace (`~/.ssh`, `~/.config/sops`, `~/.bash_history`, `~/.zsh_history`, …) can't be denied this way. For OS-level read denial of those, run Codex under the [universal wrapper](universal-sandbox-srt.md).
+
 ⚠️ **macOS caveat:** older Codex releases silently ignored `network_access = true` in the Seatbelt profile ([openai/codex#10390](https://github.com/openai/codex/issues/10390)). Our baseline keeps network off, so the bug can't *weaken* this posture — but if you enable network or profiles, verify against your installed version (`codex --version`, then test that an allowed domain works and a non-allowed one fails).
 
 ## Scope: what's covered

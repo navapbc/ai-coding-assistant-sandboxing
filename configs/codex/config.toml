@@ -60,6 +60,16 @@ ignore_default_excludes = false
 # "." = "write"
 # "**/.env" = "deny"
 # "**/.env.*" = "deny"
+# "**/*.key" = "deny"      # private keys / TLS keys
+# "**/*.sw[a-p]" = "deny"  # vim swap files (may hold unsaved secret buffers)
+# "**/secrets/**" = "deny"
+#
+# NOTE: this is workspace-scoped. The plain `sandbox_mode = "workspace-write"`
+# baseline above grants BROAD read access and has no per-path read-deny — these
+# `deny` entries exist ONLY under the permission-profiles system. Home-dir
+# secrets that live OUTSIDE the workspace (~/.ssh, ~/.config/sops,
+# ~/.bash_history, ~/.zsh_history, …) cannot be denied here; for OS-level read
+# denial of those, run Codex under the universal wrapper (docs/universal-sandbox-srt.md).
 #
 # [permissions.agency-restricted.network]
 # enabled = true

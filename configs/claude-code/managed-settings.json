@@ -18,7 +18,10 @@
         "~/.npmrc",
         "~/.pypirc",
         "~/.docker",
-        "~/Library/Keychains"
+        "~/Library/Keychains",
+        "~/.config/sops",
+        "~/.bash_history",
+        "~/.zsh_history"
       ]
     },
     "network": {
@@ -72,7 +75,12 @@
       "Read(~/.config/gcloud/**)",
       "Read(~/.kube/**)",
       "Read(~/.gnupg/**)",
+      "Read(~/.config/sops/**)",
+      "Read(~/.bash_history)",
+      "Read(~/.zsh_history)",
       "Read(~/.netrc)",
+      "Read(**/*.key)",
+      "Read(**/*.sw[a-p])",
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(./secrets/**)"
