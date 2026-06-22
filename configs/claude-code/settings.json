@@ -25,7 +25,9 @@
     "deny": [
       "Read(./.env)",
       "Read(./.env.*)",
-      "Read(./secrets/**)"
+      "Read(./secrets/**)",
+      "Read(**/*.key)",
+      "Read(**/*.sw[a-p])"
     ]
   },
   "env": {

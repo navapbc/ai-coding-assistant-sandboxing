@@ -40,6 +40,11 @@ Apply [`configs/copilot/vscode-settings.json`](../configs/copilot/vscode-setting
 - **`chat.tools.edits.autoApprove`** — globs that always require manual approval: `.env*`, key material, `secrets/`, and the AI tools' own config files (an agent must not edit its own policy).
 - Organizations can additionally restrict domains via the managed `chat.agent.networkFilter` setting.
 
+**Read restrictions — what you can and can't configure.** Copilot exposes **no per-path read-deny list** (unlike Claude Code's `denyRead` / `permissions.deny` or Codex's permission profiles). What you get:
+
+- **Home-dir secrets are covered automatically.** The terminal sandbox denies file reads under `$HOME`, so `~/.ssh`, `~/.aws`, **`~/.config/sops` (SOPS age keys), and `~/.bash_history`/`~/.zsh_history`** on disk are unreadable to agent-run commands — without any setting.
+- **Workspace file-types are not configurable.** There is no knob to deny reading `*.key` or vim swap files (`*.sw[a-p]`) *inside* the workspace, which the sandbox treats as readable. `chat.tools.edits.autoApprove` only gates **edits**, not reads. For OS-level read denial of those types, run Copilot under the [universal `srt` wrapper](universal-sandbox-srt.md) — its Seatbelt profile denies them by regex. This is another reason the wrapper/devcontainer is the enforceable answer for Copilot.
+
 ## JetBrains: the gap, plainly
 
 Copilot agent mode in IntelliJ executes on your host with your privileges and offers **no OS-level sandbox**. Its "isolation modes" (git worktree vs. workspace) isolate *changes*, not *capabilities*. Until GitHub ships an equivalent of the VS Code terminal sandbox for JetBrains:

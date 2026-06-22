@@ -39,8 +39,12 @@ which makes path-based denies look broken when they aren't).
 - **Secret-path `denyRead` lists must stay identical** across
   `managed-settings.json`, `managed-settings.scoped-pat.json`,
   `settings.user.json`, `agent.sb`, and the `srt` example. Canonical set = the
-  11 paths in `agent.sb`. `~/.gitconfig` is **deliberately not denied** (git
-  needs it for commit identity; its write is already blocked) — don't "fix" that.
+  14 home-anchored paths in `agent.sb`. `~/.gitconfig` is **deliberately not
+  denied** (git needs it for commit identity; its write is already blocked) —
+  don't "fix" that. File-*type* denials (`*.key`, vim swap `*.sw[a-p]`) are
+  **not** in this canonical list: `denyRead` is literal-path-only (no globs), so
+  they live in `permissions.deny` (Claude Code) and as `(regex …)` rules in
+  `agent.sb`. Adding a new file type means editing both layers, not `denyRead`.
 - **Domain allowlists are duplicated** across several files by format necessity.
   Changing one usually means changing the others; the network-allowlists doc has
   the list of files. Call out cross-file edits in the PR.

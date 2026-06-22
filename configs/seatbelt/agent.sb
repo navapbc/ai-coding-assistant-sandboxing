@@ -66,9 +66,22 @@
   (subpath (string-append (param "HOME_DIR") "/.gnupg"))
   (subpath (string-append (param "HOME_DIR") "/.docker"))
   (subpath (string-append (param "HOME_DIR") "/Library/Keychains"))
+  (subpath (string-append (param "HOME_DIR") "/.config/sops"))
   (literal (string-append (param "HOME_DIR") "/.netrc"))
   (literal (string-append (param "HOME_DIR") "/.npmrc"))
-  (literal (string-append (param "HOME_DIR") "/.pypirc")))
+  (literal (string-append (param "HOME_DIR") "/.pypirc"))
+  (literal (string-append (param "HOME_DIR") "/.bash_history"))
+  (literal (string-append (param "HOME_DIR") "/.zsh_history")))
+
+;; Sensitive file *types*, denied anywhere (including TARGET_DIR) — these are
+;; extension-matched, not home-anchored, so they use regex rather than subpath.
+;; Claude Code's own `denyRead` is literal-path-only and can't express these;
+;; this Seatbelt regex is the OS-level equivalent for the wrapped tier.
+;;   *.key            private keys / TLS keys
+;;   *.sw[a-p]        vim swap files (may hold unsaved buffer contents of secrets)
+(deny file-read* file-write*
+  (regex #"\.key$")
+  (regex #"\.sw[a-p]$"))
 
 ;; ~/.gitconfig is intentionally NOT denied here. git reads it for commit
 ;; identity (user.name/email), and commits happen inside the sandbox — denying

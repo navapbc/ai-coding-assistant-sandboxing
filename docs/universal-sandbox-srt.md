@@ -27,7 +27,7 @@ Create `~/.srt-settings.json`:
     ]
   },
   "filesystem": {
-    "denyRead": ["~/.ssh", "~/.aws", "~/.azure", "~/.config/gcloud", "~/.kube", "~/.gnupg", "~/.netrc", "~/.npmrc", "~/.pypirc", "~/.docker", "~/Library/Keychains"],
+    "denyRead": ["~/.ssh", "~/.aws", "~/.azure", "~/.config/gcloud", "~/.kube", "~/.gnupg", "~/.netrc", "~/.npmrc", "~/.pypirc", "~/.docker", "~/Library/Keychains", "~/.config/sops", "~/.bash_history", "~/.zsh_history"],
     "allowWrite": [".", "/tmp"],
     "denyWrite": [".env", ".env.*"]
   }
@@ -61,7 +61,8 @@ What it enforces (all verified by live test on macOS — see [troubleshooting.md
 | Property | Mechanism |
 |----------|-----------|
 | Writes only in workspace + temp | `(deny default)` + explicit `file-write*` allows |
-| `~/.ssh`, `~/.aws`, `~/.kube`, … unreadable | deny rules placed **last** (Seatbelt is last-match-wins) |
+| `~/.ssh`, `~/.aws`, `~/.kube`, `~/.config/sops`, `~/.bash_history`, `~/.zsh_history`, … unreadable | deny rules placed **last** (Seatbelt is last-match-wins) |
+| `*.key`, vim swap files (`*.sw[a-p]`) unreadable anywhere | `(regex …)` denies — extension-matched, so they catch these types even inside the workspace. (`srt`'s/Claude Code's `denyRead` is literal-path-only and can't express extension globs; this is the OS-level equivalent.) |
 | Keychain unreachable | securityd Mach services deliberately absent from the `mach-lookup` allowlist — blocking the files isn't enough, the `security` CLI talks to the daemon over Mach IPC |
 | No network (or localhost-proxy-only) | `(deny default)`; optional `(allow network-outbound (remote tcp "localhost:PORT"))` appended by the wrapper |
 | Shell env doesn't leak | wrapper starts from `env -i` with an explicit allowlist; secrets pass only via `--pass-env` |

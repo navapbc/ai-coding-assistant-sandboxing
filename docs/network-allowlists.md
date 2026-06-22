@@ -193,7 +193,7 @@ Tiers the check enforces (and the files they map to):
 
 **To change an allowlist:** edit the manifest, update the matching tier file(s), and run the check — it prints exactly what's missing/extra. The Codex permission-profile block (`configs/codex/config.toml`, commented) and the project example `configs/claude-code/settings.json` are illustrative and **not** machine-checked; keep them roughly in step by hand. The check enforces *consistency*, not *correctness* — a human reviewer (ideally a [CODEOWNER](../.github/CODEOWNERS)) still decides whether a domain belongs.
 
-The same applies to the **secret-path `denyRead` lists** (`~/.ssh`, `~/.aws`, `~/.npmrc`, …), which are duplicated across `managed-settings.json`, `settings.user.json`, `agent.sb`, and the `srt` example. The canonical set is the 11 paths in `agent.sb`; keep the others aligned to it. (`~/.gitconfig` is deliberately excluded — see the note in `agent.sb`.)
+The same applies to the **secret-path `denyRead` lists** (`~/.ssh`, `~/.aws`, `~/.npmrc`, …), which are duplicated across `managed-settings.json`, `settings.user.json`, `agent.sb`, and the `srt` example. The canonical set is the 14 home-anchored paths in `agent.sb`; keep the others aligned to it. (`~/.gitconfig` is deliberately excluded — see the note in `agent.sb`.) The file-*type* denials `*.key` and vim swap files (`*.sw[a-p]`) are **not** part of this canonical list — `denyRead` is literal-path-only, so they live in `permissions.deny` (Claude Code) and as `(regex …)` rules in `agent.sb`.
 
 ## Change process
 

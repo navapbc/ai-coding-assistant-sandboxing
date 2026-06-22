@@ -16,6 +16,9 @@ A hijacked agent on an unprotected workstation has everything its user has. On o
 | `~/.aws/`, `~/.config/gcloud/`, `~/.azure/` | Cloud credentials — potentially production access |
 | `~/.kube/config` | Cluster credentials |
 | `~/.netrc`, `~/.npmrc`, `~/.pypirc`, `~/.gitconfig` | Embedded tokens; publish rights (`.netrc`/`.npmrc`/`.pypirc` are `denyRead`; `.gitconfig` read is intentionally allowed for git identity, with write blocked — don't store tokens there) |
+| `~/.config/sops/` | SOPS age private keys — decrypt every secret SOPS protects (`denyRead`) |
+| `~/.bash_history`, `~/.zsh_history` | Shell history routinely captures pasted tokens, `export SECRET=…`, and connection strings (`denyRead`) |
+| `*.key` files, vim swap files (`*.sw[a-p]`) | Private keys; swap files hold unsaved buffer contents of whatever secret was being edited. File-type denials, so `permissions.deny` (Claude Code) + Seatbelt `(regex …)` — `denyRead` can't glob |
 | Environment variables | API keys exported in the shell — inherited by every child process by default |
 | macOS Keychain | Stored passwords/tokens — reachable via the `security` CLI over Mach IPC, **not only via file reads** |
 | Git credential helpers | `osxkeychain` hands stored credentials to any `git` invocation against an attacker-controlled remote |
