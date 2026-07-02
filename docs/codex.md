@@ -2,7 +2,7 @@
 
 Codex CLI sandboxes every shell command it executes using macOS Seatbelt (`sandbox-exec` under the hood), with network **off by default** in its standard mode. The same sandbox applies in the Codex VS Code extension.
 
-**Status: Approved** (CLI and VS Code) with the configuration below; `danger-full-access` is **not approved** and is pinned off by enforcement. See [policy-matrix.md](policy-matrix.md).
+**Status: sandbox available** (CLI and VS Code) with the configuration below; `danger-full-access` removes the sandbox and is pinned off by enforcement. See [policy-matrix.md](policy-matrix.md).
 
 ## 5-minute setup
 
@@ -26,13 +26,13 @@ codex exec "run: cat ~/.ssh/id_ed25519.pub"   # the command errors under Seatbel
 codex exec "run: curl https://example.com"     # no network inside the sandbox
 ```
 
-## Sandbox modes (what's approved)
+## Sandbox modes (which keep a boundary)
 
-| Mode | Behavior | Verdict |
-|------|----------|---------|
-| `read-only` | Inspect only; every change/command needs approval | ✅ Approved (good for code review sessions) |
-| `workspace-write` | Workspace+temp writes, network off by default | ✅ Approved — our baseline |
-| `danger-full-access` | No sandbox at all | ❌ **Not approved.** Pinned off via `requirements.toml` |
+| Mode | Behavior | Status |
+|------|----------|--------|
+| `read-only` | Inspect only; every change/command needs approval | ✅ Sandboxed (good for code review sessions) |
+| `workspace-write` | Workspace+temp writes, network off by default | ✅ Sandboxed — our baseline |
+| `danger-full-access` | No sandbox at all | ❌ **No sandbox.** Pinned off via `requirements.toml` |
 
 ## Domain-level network allowlisting (newer permission profiles)
 

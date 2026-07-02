@@ -1,16 +1,16 @@
 # GitHub Copilot: Sandbox Options and the JetBrains Gap
 
-Copilot's local isolation story is the youngest of the three tools, and it varies sharply by surface. Read the verdicts before the setup steps.
+Copilot's local isolation story is the youngest of the three tools, and it varies sharply by surface. Read the status of each before the setup steps.
 
-| Surface | OS sandbox? | Verdict |
-|---------|-------------|---------|
-| Copilot CLI with `/sandbox enable` | ✅ Seatbelt + HTTP proxy (public preview, June 2026) | ✅ Approved with sandbox enabled |
-| Copilot CLI without sandbox | ❌ Permission prompts only — shell commands run with your full account | ❌ Not approved for agentic use |
-| VS Code agent mode + terminal sandbox setting | ✅ Seatbelt (preview) | ✅ Approved with the setting on |
-| VS Code agent mode, setting off | ❌ Approval prompts + workspace trust only | ❌ Not approved |
-| **JetBrains (IntelliJ) agent mode** | ❌ **None** — git-worktree isolation is change isolation, not security isolation | ❌ **Not approved on the host. Use the [devcontainer](devcontainer.md).** |
-| Copilot coding agent (cloud, assign-an-issue) | ✅ GitHub Actions runners with default-on egress firewall | ✅ Approved (cloud-side; not a local concern) |
-| Code completions (non-agentic, all IDEs) | n/a — suggests text, executes nothing | ✅ Approved |
+| Surface | OS sandbox? | Status |
+|---------|-------------|--------|
+| Copilot CLI with `/sandbox enable` | ✅ Seatbelt + HTTP proxy (public preview, June 2026) | ✅ Sandbox available with it enabled |
+| Copilot CLI without sandbox | ❌ Permission prompts only — shell commands run with your full account | ❌ No sandbox — don't use for agentic work |
+| VS Code agent mode + terminal sandbox setting | ✅ Seatbelt (preview) | ✅ Sandbox available with the setting on |
+| VS Code agent mode, setting off | ❌ Approval prompts + workspace trust only | ❌ No sandbox |
+| **JetBrains (IntelliJ) agent mode** | ❌ **None** — git-worktree isolation is change isolation, not security isolation | ❌ **No sandbox on the host. Use the [devcontainer](devcontainer.md).** |
+| Copilot coding agent (cloud, assign-an-issue) | ✅ GitHub Actions runners with default-on egress firewall | ✅ Sandboxed (cloud-side; not a local concern) |
+| Code completions (non-agentic, all IDEs) | n/a — suggests text, executes nothing | ✅ Nothing to sandbox |
 
 ## Copilot CLI: 5-minute setup
 
@@ -42,14 +42,14 @@ Apply [`configs/copilot/vscode-settings.json`](../configs/copilot/vscode-setting
 
 **Read restrictions — what you can and can't configure.** Copilot exposes **no per-path read-deny list** (unlike Claude Code's `denyRead` / `permissions.deny` or Codex's permission profiles). What you get:
 
-- **Home-dir secrets are covered automatically.** The terminal sandbox denies file reads under `$HOME`, so `~/.ssh`, `~/.aws`, **`~/.config/sops` (SOPS age keys), and `~/.bash_history`/`~/.zsh_history`** on disk are unreadable to agent-run commands — without any setting.
+- **Home-dir secrets are covered automatically.** The terminal sandbox denies file reads under `$HOME`, so `~/.ssh`, `~/.aws`, **`~/.config/sops` (SOPS age keys), and `~/.bash_history`/`~/.zsh_history`** on disk are blocked from agent-run commands — without any setting (as far as the preview sandbox holds; verify it for yourself).
 - **Workspace file-types are not configurable.** There is no knob to deny reading `*.key` or vim swap files (`*.sw[a-p]`) *inside* the workspace, which the sandbox treats as readable. `chat.tools.edits.autoApprove` only gates **edits**, not reads. For OS-level read denial of those types, run Copilot under the [universal `srt` wrapper](universal-sandbox-srt.md) — its Seatbelt profile denies them by regex. This is another reason the wrapper/devcontainer is the enforceable answer for Copilot.
 
 ## JetBrains: the gap, plainly
 
 Copilot agent mode in IntelliJ executes on your host with your privileges and offers **no OS-level sandbox**. Its "isolation modes" (git worktree vs. workspace) isolate *changes*, not *capabilities*. Until GitHub ships an equivalent of the VS Code terminal sandbox for JetBrains:
 
-- **Agentic Copilot in IntelliJ is not approved on the host.**
+- **Agentic Copilot in IntelliJ has no sandbox on the host — don't run it there.**
 - The sanctioned paths: open the project in the [devcontainer](devcontainer.md) (JetBrains supports devcontainers; the firewall contains everything inside), or use Copilot **CLI** with `/sandbox enable` in a terminal next to the IDE.
 - Completions (non-agentic) in IntelliJ remain fine — they execute nothing.
 

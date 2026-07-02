@@ -67,7 +67,7 @@ What it enforces (all verified by live test on macOS — see [troubleshooting.md
 | No network (or localhost-proxy-only) | `(deny default)`; optional `(allow network-outbound (remote tcp "localhost:PORT"))` appended by the wrapper |
 | Shell env doesn't leak | wrapper starts from `env -i` with an explicit allowlist; secrets pass only via `--pass-env` |
 
-For the proxy in `--allow-net-proxy` mode, run any domain-filtering forward proxy on localhost — e.g. `mitmproxy --mode regular --listen-port 8888 --allow-hosts '^(.*\.)?(github\.com|npmjs\.org)(:443)?$'`. The Seatbelt side guarantees the proxy is the only path out.
+For the proxy in `--allow-net-proxy` mode, run any domain-filtering forward proxy on localhost — e.g. `mitmproxy --mode regular --listen-port 8888 --allow-hosts '^(.*\.)?(github\.com|npmjs\.org)(:443)?$'`. The Seatbelt side is what's meant to make the proxy the only path out — again, only as far as the profile loads and the kernel boundary holds.
 
 **Caveats of Option B** (why A is preferred): `sandbox-exec` is deprecated by Apple (still shipped, still what Codex/Chrome build on, but carries long-term uncertainty); the Mach-service allowlist in `agent.sb` is minimal and some tools may need additions; you must bring your own proxy for network use.
 

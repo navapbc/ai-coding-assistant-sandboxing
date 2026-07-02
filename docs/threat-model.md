@@ -6,7 +6,7 @@ What we are defending against, what each control actually does, and — just as 
 
 An AI coding agent reads untrusted text constantly: repo files, dependency READMEs, issue threads, web pages, tool output. Any of it can carry a **prompt injection** — instructions that hijack the agent into acting against you. OWASP ranks prompt injection the #1 LLM risk, and it is the dominant agentic failure mode observed in production. Real-world precedent justifies the paranoia: CVE-2025-59532 (Codex CLI agent output could redefine its own sandbox boundary) and CVE-2026-22708 (Cursor: an allowlisted `git branch` command weaponized via a poisoned execution environment).
 
-A hijacked agent on an unprotected workstation has everything its user has. On our machines that could include credentials with privileged access to systems holding beneficiary data. That is the blast radius we are shrinking.
+A hijacked agent on an unprotected workstation has everything its user has. On our machines that could include credentials with privileged access to systems holding sensitive data. That is the blast radius we are shrinking.
 
 ## What the attacker wants (exfiltration targets on a dev Mac)
 
@@ -43,7 +43,7 @@ Every configuration in this repo enforces both sides. When you widen one side (a
 | Sanitized environment | Secrets in your shell env don't reach agent subprocesses | `env -i` in our wrapper (deny-by-default allowlist — fully enforces this); `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` is best-effort only — it strips Anthropic/cloud-provider creds but **not** GitHub PATs (`GITHUB_TOKEN`/`GH_TOKEN`) |
 | Human-approval ask-list | `git push`, `gh pr create`, `npm publish`, `docker` prompt before running | Tool permission rules |
 
-A key architectural fact: **macOS Seatbelt cannot filter by domain.** The kernel sees IP addresses and ports, never hostnames. Every serious implementation (Claude Code's `/sandbox`, Codex, `srt`) therefore blocks all direct egress at the kernel and routes traffic through a proxy *outside* the sandbox that enforces the domain allowlist. A tool that ignores the proxy doesn't escape — it simply has no network. Failure is closed.
+A key architectural fact: **macOS Seatbelt cannot filter by domain.** The kernel sees IP addresses and ports, never hostnames. Every serious implementation (Claude Code's `/sandbox`, Codex, `srt`) therefore blocks all direct egress at the kernel and routes traffic through a proxy *outside* the sandbox that enforces the domain allowlist. A tool that ignores the proxy doesn't escape — it simply has no network. Failure is closed — assuming the profile loads and the kernel boundary holds (not a given; see residual risks below).
 
 ## Why no cloud-provider domains, ever
 
@@ -63,5 +63,5 @@ A key architectural fact: **macOS Seatbelt cannot filter by domain.** The kernel
 ## What sandboxing does NOT solve
 
 - **Bad code merged because nobody reviewed it.** Sandboxing constrains the agent's runtime, not the quality or intent of its diffs. Code review remains the control for what lands in `main`.
-- **Data already in the workspace.** If beneficiary data sits in the repo the agent works on, the agent can read it — that's its job. Don't point agents at production data; sanitize fixtures.
+- **Sensitive data in the workspace — which must never be there in the first place.** Anything in the workspace is readable by the agent by design, so if production data, real secrets, or PII sit in the repo it works on, the agent can read them, and they can flow into model context, logs, or a diff. The sandbox does nothing about this — it is a **significant risk it cannot mitigate**. So keep it out entirely: never point an agent at production or sensitive data, and use sanitized, synthetic fixtures.
 - **Supply-chain attacks you install on purpose.** `npm install` of a malicious package executes inside the sandbox today, but ships to CI and production later. Registry allowlisting + an internal artifact proxy reduce, not remove, this.

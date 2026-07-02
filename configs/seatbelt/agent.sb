@@ -86,5 +86,5 @@
 ;; ~/.gitconfig is intentionally NOT denied here. git reads it for commit
 ;; identity (user.name/email), and commits happen inside the sandbox — denying
 ;; read would break them. Writes to it are already blocked (default-deny above),
-;; which is what stops malicious credential-helper / url.insteadOf injection.
+;; which is what closes the git-based credential-helper / url.insteadOf injection vector.
 ;; Don't store tokens in ~/.gitconfig; use a repo-scoped PAT kept out of reach.
