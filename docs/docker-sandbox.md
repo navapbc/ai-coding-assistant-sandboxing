@@ -1,8 +1,8 @@
-# Docker Sandboxes (`sbx`): Preferred Tier 2 for the Docker-Licensed Subset
+# Docker Sandboxes (`sbx`): Preferred Tier 2 Where Docker Is Available
 
 For developers who have Docker, **Docker Sandboxes** is the strongest Tier 2 option available — and on two axes it is better than our hand-rolled [devcontainer firewall](devcontainer.md). It runs each agent in a **microVM** (its own kernel, filesystem, and network — a harder boundary than container namespaces), and its built-in host proxy does **TLS-terminating, hostname-level egress filtering** with a default-deny preset. Use it as a drop-in replacement for the devcontainer tier where it's available.
 
-It is **not** the fleet default: it's scoped to the subset that has it provisioned. The native built-ins (Claude Code, Codex) remain the everyday low-friction path for everyone else.
+It is **not** the fleet default: it covers the developers who have it installed. The native built-ins (Claude Code, Codex) remain the everyday low-friction path for everyone else.
 
 ## Why it's better than the devcontainer firewall
 
@@ -17,7 +17,7 @@ The credential point is the standout: it resolves the [core constraint](network-
 
 ## 5-minute setup
 
-Docker Sandboxes ships as a standalone CLI (`sbx`); it does **not** require Docker Desktop, though the subset here already has Docker. It is **free for commercial and professional use as of July 2026** — it needs only a **free Docker account** to sign in (`sbx login`), with no per-seat fee, and it is not tied to Docker Desktop licensing. The one thing that is **not** free is the org governance tier ([below](#fleet-enforcement-requires-the-org-governance-tier)) — that's a separate paid subscription. Terms can change; verify against Docker's FAQ: https://docs.docker.com/ai/sandboxes/faq/
+Docker Sandboxes ships as a standalone CLI (`sbx`); it does **not** require Docker Desktop (any Docker-compatible runtime works). It is **free for commercial and professional use as of July 2026** — it needs only a **free Docker account** to sign in (`sbx login`), with no per-seat fee, and it is not tied to Docker Desktop licensing. The one thing that is **not** free is the org governance tier ([below](#fleet-enforcement-requires-the-org-governance-tier)) — that's a separate paid subscription. Terms can change; verify against Docker's FAQ: https://docs.docker.com/ai/sandboxes/faq/
 
 ```bash
 brew install docker/tap/sbx

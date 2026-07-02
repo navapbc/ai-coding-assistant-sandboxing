@@ -23,7 +23,7 @@ We do not try to predict what commands an agent will run. We **contain** what an
 | Tier | What | Covers | Start here |
 |------|------|--------|------------|
 | **1 — Hardened built-ins** | Each tool's own OS-level sandbox, configured tight | Claude Code (CLI + IDEs), Codex (CLI + VS Code), Copilot CLI (preview) | [claude-code](docs/claude-code.md) · [codex](docs/codex.md) · [copilot](docs/copilot.md) |
-| **2 — Universal isolation** | Devcontainer with default-deny firewall, the `srt` wrapper, or Docker Sandboxes (`sbx`) for the Docker-licensed subset; Apple `container` microVMs are an emerging option | **All three tools**, including the gaps (Copilot in JetBrains) | [devcontainer](docs/devcontainer.md) · [srt](docs/universal-sandbox-srt.md) · [docker-sandbox](docs/docker-sandbox.md) · [apple-container](docs/apple-container.md) |
+| **2 — Universal isolation** | Devcontainer with default-deny firewall, the `srt` wrapper, or Docker Sandboxes (`sbx`) for anyone with Docker available; Apple `container` microVMs are an emerging option | **All three tools**, including the gaps (Copilot in JetBrains) | [devcontainer](docs/devcontainer.md) · [srt](docs/universal-sandbox-srt.md) · [docker-sandbox](docs/docker-sandbox.md) · [apple-container](docs/apple-container.md) |
 | **3 — Org enforcement** | MDM-deployed managed settings that developers can't override | Fleet-wide | [enforcement](docs/enforcement.md) |
 
 Tiers compose: a developer on Tier 1 today already has a boundary in place (as strong as that tier actually holds — see the warning above); Tier 3 makes sure it stays on; Tier 2 covers the tools and IDE surfaces that have no built-in story.
@@ -70,7 +70,7 @@ Two design notes so this stays robust:
 - **Claude Code** → run `/sandbox`, then copy [`configs/claude-code/settings.user.json`](configs/claude-code/settings.user.json) to `~/.claude/settings.json`. Done in 5 minutes. **For host-level default-deny egress (most solo devs want this), also run `./setup.sh --managed`** — the user baseline alone is *not* default-deny ([why & how](docs/enforcement.md#single-machine-solo-developer-no-mdm)). [Guide](docs/claude-code.md)
 - **Codex CLI** → copy [`configs/codex/config.toml`](configs/codex/config.toml) to `~/.codex/config.toml`. [Guide](docs/codex.md)
 - **Copilot CLI** → run `/sandbox enable` in a session (public preview); for VS Code set [`configs/copilot/vscode-settings.json`](configs/copilot/vscode-settings.json). **Copilot agent mode in JetBrains has no sandbox — use the [devcontainer](docs/devcontainer.md).** [Guide](docs/copilot.md)
-- **Any tool, any IDE — strongest isolation** → the [devcontainer](docs/devcontainer.md) ([`configs/devcontainer/`](configs/devcontainer/)): a **~10-minute [quick start](docs/devcontainer.md#quick-start-10-minutes--mostly-the-one-time-image-build)** to a sandboxed agent in VS Code or JetBrains — the whole process behind default-deny egress. Or — if you have Docker — [Docker Sandboxes](docs/docker-sandbox.md) (`sbx`), the preferred Tier 2 for that subset.
+- **Any tool, any IDE — strongest isolation** → the [devcontainer](docs/devcontainer.md) ([`configs/devcontainer/`](configs/devcontainer/)): a **~10-minute [quick start](docs/devcontainer.md#quick-start-10-minutes--mostly-the-one-time-image-build)** to a sandboxed agent in VS Code or JetBrains — the whole process behind default-deny egress. Or — if you have Docker — [Docker Sandboxes](docs/docker-sandbox.md) (`sbx`), the preferred Tier 2 when it's available.
 
 ## Documentation map
 
@@ -84,7 +84,7 @@ Two design notes so this stays robust:
 | [copilot.md](docs/copilot.md) | Copilot CLI/VS Code sandboxing and the JetBrains gap |
 | [universal-sandbox-srt.md](docs/universal-sandbox-srt.md) | Wrapping *any* CLI in a Seatbelt + filtering-proxy sandbox (`srt`), plus our raw `sandbox-exec` fallback |
 | [devcontainer.md](docs/devcontainer.md) | Running agents in a container with a default-deny egress firewall |
-| [docker-sandbox.md](docs/docker-sandbox.md) | Docker Sandboxes (`sbx`) — microVM + hostname-filtering proxy, for the Docker-licensed subset |
+| [docker-sandbox.md](docs/docker-sandbox.md) | Docker Sandboxes (`sbx`) — microVM + hostname-filtering proxy, for anyone with Docker available |
 | [apple-container.md](docs/apple-container.md) | Apple `container` microVMs (emerging) — why it's promising, its egress gap, and why Container Machine is *not* an agent sandbox |
 | [git-credentials.md](docs/git-credentials.md) | Storing least-privilege GitHub tokens on macOS (1Password / Keychain) — and keeping them out of your shell environment |
 | [agent-git.md](docs/agent-git.md) | How an agent commits/branches in each tier, the monorepo `.git`-in-workspace fix, and how push is gated — consistently across tools |
