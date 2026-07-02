@@ -11,7 +11,7 @@ Based on Anthropic's reference implementation ([anthropics/claude-code/.devconta
 - All three CLIs (`claude`, `codex`, `copilot`) installed in an Ubuntu container; the agent, its MCP servers, hooks — everything — runs inside.
 - **Default-deny egress**: the shipped default is a hostname-filtering **CONNECT proxy** (`EGRESS_MODE=proxy`, [details](../configs/devcontainer/egress-proxy/README.md)); the validated fallback is an **IP firewall** (`init-firewall.sh` resolves `allowed-domains.txt` to IPs + GitHub ranges, `DROP` policy). Either mode **self-tests** at start (must reach `api.github.com`, must fail `example.com`) and refuses to run if egress isn't actually contained.
 - Managed policy baked into the image (`/etc/claude-code/managed-settings.json`, `/etc/codex/requirements.toml`) — not overridable from inside.
-- Host filesystem exposure limited to the bind-mounted workspace. Your `~/.ssh`, keychain, and shell env never enter the container.
+- Host filesystem exposure limited to the bind-mounted workspace. Your `~/.ssh`, keychain, and shell env aren't mounted into the container (a container escape or a misconfigured mount would still cross that line — the boundary is the container, not magic).
 - Auto-approval (`claude --dangerously-skip-permissions`, Copilot `--allow-all-tools`) is more defensible here than on the host — **inside this container only** — because the container is the boundary and the non-root user satisfies Claude Code's root check. The blast radius is what the container can reach, not zero.
 
 ## Quick start (~10 minutes — mostly the one-time image build)
@@ -36,7 +36,7 @@ Based on Anthropic's reference implementation ([anthropics/claude-code/.devconta
 5. **Pick your assistant and log in** (first run only; credentials persist in named volumes, never on the host):
    Claude Code → `claude` · Codex → `codex login` · Copilot → `copilot` then `/login`.
 
-You're done: the agent — and its MCP servers/hooks — can reach only the allowlisted domains and can't see your host secrets. Auto-approval (`claude --dangerously-skip-permissions`, Copilot `--allow-all-tools`) is safe **inside this container**.
+You're done: the agent — and its MCP servers/hooks — can reach only the allowlisted domains and don't have your host secrets mounted in. Auto-approval (`claude --dangerously-skip-permissions`, Copilot `--allow-all-tools`) is far more defensible **inside this container** than on the host — the container is the boundary, so the blast radius is what it can reach, not zero.
 
 > [!IMPORTANT]
 > **Egress mode = CONNECT proxy (experimental).** This devcontainer ships the hostname-filtering [CONNECT proxy](../configs/devcontainer/egress-proxy/README.md) by default (`EGRESS_MODE=proxy`) — no IP drift, robust to ECH. It is **not yet validated on a real build**; step 4's self-test tells you whether it's working. **If the image build fails (installing Envoy) or the self-test fails, fall back to the validated IP firewall:** in `.devcontainer/devcontainer.json` set `"EGRESS_MODE": "ipset"` and `build.args.EGRESS_PROXY` to `"false"`, then rebuild. The IP firewall is the proven path and the rest of this page describes it.
@@ -56,7 +56,7 @@ api.github.com/meta ──▶ GitHub CIDR ranges     ──▶        │
 
 Trade-offs versus the hostname-filtering proxies of Tier 1, stated plainly:
 
-1. **IP drift.** Domains resolve once at start. A CDN-backed domain that rotates IPs can stop working mid-session — rerun `sudo /usr/local/bin/init-firewall.sh` to re-resolve. (This fails *closed*: drift blocks, never opens.)
+1. **IP drift.** Domains resolve once at start. A CDN-backed domain that rotates IPs can stop working mid-session — rerun `sudo /usr/local/bin/init-firewall.sh` to re-resolve. (This is designed to fail *closed*: drift blocks rather than opening.)
 2. **Range over-permission.** GitHub's published CIDR ranges allow all of GitHub — consistent with our policy, but remember [the residual risk](threat-model.md#residual-risks--read-this-before-calling-anything-secure): allowed multi-tenant hosts are still exfil channels.
 3. **DNS needs its own control (layered here).** The IP-based allowlist doesn't inspect DNS. By default the firewall now pins DNS egress to the container's configured resolver(s) — blocking direct queries to an arbitrary resolver. For full coverage, set `ENABLE_DNS_ALLOWLIST=true` to run a local dnsmasq that resolves only allowlisted domains and refuses the rest, which closes recursive DNS tunneling (opt-in, requires the bundled dnsmasq, currently **untested** — verify resolution first). The built-in proxy tiers and Docker Sandboxes still handle DNS more cleanly ([details](threat-model.md#residual-risks--read-this-before-calling-anything-secure)).
 

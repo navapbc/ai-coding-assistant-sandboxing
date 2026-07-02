@@ -17,7 +17,7 @@ The credential point is the standout: it resolves the [core constraint](network-
 
 ## 5-minute setup
 
-Docker Sandboxes ships as a standalone CLI (`sbx`); it does **not** require Docker Desktop, though the subset here already has Docker.
+Docker Sandboxes ships as a standalone CLI (`sbx`); it does **not** require Docker Desktop, though the subset here already has Docker. It is **free for commercial and professional use as of July 2026** — it needs only a **free Docker account** to sign in (`sbx login`), with no per-seat fee, and it is not tied to Docker Desktop licensing. The one thing that is **not** free is the org governance tier ([below](#fleet-enforcement-requires-the-org-governance-tier)) — that's a separate paid subscription. Terms can change; verify against Docker's FAQ: https://docs.docker.com/ai/sandboxes/faq/
 
 ```bash
 brew install docker/tap/sbx
@@ -35,7 +35,7 @@ cd ~/my-project
 sbx run --clone --name my-task claude     # or: codex, copilot
 ```
 
-That's a contained session: microVM isolation, host filesystem and creds out of reach, egress restricted to the allowlist.
+That's a more contained session: microVM isolation, the host filesystem not mounted and the credential kept out of the VM, egress restricted to the allowlist — subject to the [caveats below](#caveats-be-honest-in-the-compliance-record) (TLS interception, `--clone` vs. mount, still-scope-the-token).
 
 ## Network policy: default-deny + our allowlist
 
@@ -64,6 +64,7 @@ By default, `sbx policy` rules are **user-local and the developer can change the
 ## References (source of truth)
 
 - Overview: https://docs.docker.com/ai/sandboxes/
+- Pricing / licensing FAQ (free for commercial use; paid governance): https://docs.docker.com/ai/sandboxes/faq/
 - Get started / CLI / secrets: https://docs.docker.com/ai/sandboxes/get-started/
 - Security model (isolation, mounts, credential injection): https://docs.docker.com/ai/sandboxes/security/
 - Network policy (presets, `sbx policy`, proxy): https://docs.docker.com/ai/sandboxes/security/policy/

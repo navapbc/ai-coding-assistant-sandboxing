@@ -7,9 +7,12 @@
 >
 > **Do not develop a false sense of security.** A sandbox that is enabled is not the same as a sandbox that is working as you assume, and "more secure than nothing" is not a property you can take for granted. **Verify every claim before you rely on it** — against the linked vendor docs *and* by testing the actual behavior on your own machine (see the [egress check](docs/troubleshooting.md#verify-your-egress-is-actually-default-deny) and [threat-model.md](docs/threat-model.md)). Vendor docs can be wrong or out of date, defaults change between versions, and a config that protected you yesterday may silently stop doing so after an update. Assume nothing is enforced until you have watched it block something.
 
-**Status:** experimental · last reviewed 2026-06-13
+**Status:** experimental · last reviewed 2026-07-01
 
-Guides and runnable configurations for using **Claude Code**, **OpenAI Codex**, and **GitHub Copilot** safely on developer Macs in an environment that handles sensitive beneficiary data. The goal: an agent that is compromised by prompt injection **cannot read host secrets and cannot exfiltrate data** — while staying pleasant enough to use that nobody routes around it.
+Guides and runnable configurations for reducing the blast radius of **Claude Code**, **OpenAI Codex**, and **GitHub Copilot** on developer Macs that handle sensitive data. The goal is to make it substantially harder for an agent compromised by prompt injection to read host secrets or exfiltrate data — a goal these tools work toward, not a guarantee they deliver (see the warning above) — while staying pleasant enough to use that nobody routes around it.
+
+> [!CAUTION]
+> **These agents must never work with sensitive data.** Keep production data, real secrets, credentials, and PII out of any workspace an agent can see — never point an agent at them, and never paste them into a prompt. Sensitive data in an agent's reach is a **significant risk that this sandboxing does not remove**: anything in the workspace is readable by the agent by design and can flow into model context, logs, tool output, or a diff. The sandbox shrinks the blast radius of a compromise; it does not make it safe to hand an agent sensitive data. Use sanitized, synthetic fixtures instead.
 
 ## The model in one paragraph
 
@@ -20,10 +23,10 @@ We do not try to predict what commands an agent will run. We **contain** what an
 | Tier | What | Covers | Start here |
 |------|------|--------|------------|
 | **1 — Hardened built-ins** | Each tool's own OS-level sandbox, configured tight | Claude Code (CLI + IDEs), Codex (CLI + VS Code), Copilot CLI (preview) | [claude-code](docs/claude-code.md) · [codex](docs/codex.md) · [copilot](docs/copilot.md) |
-| **2 — Universal isolation** | Devcontainer with default-deny firewall, the `srt` wrapper, or Docker Sandboxes (`sbx`) for the Docker-licensed subset | **All three tools**, including the gaps (Copilot in JetBrains) | [devcontainer](docs/devcontainer.md) · [srt](docs/universal-sandbox-srt.md) · [docker-sandbox](docs/docker-sandbox.md) |
+| **2 — Universal isolation** | Devcontainer with default-deny firewall, the `srt` wrapper, or Docker Sandboxes (`sbx`) for the Docker-licensed subset; Apple `container` microVMs are an emerging option | **All three tools**, including the gaps (Copilot in JetBrains) | [devcontainer](docs/devcontainer.md) · [srt](docs/universal-sandbox-srt.md) · [docker-sandbox](docs/docker-sandbox.md) · [apple-container](docs/apple-container.md) |
 | **3 — Org enforcement** | MDM-deployed managed settings that developers can't override | Fleet-wide | [enforcement](docs/enforcement.md) |
 
-Tiers compose: a developer on Tier 1 today is protected; Tier 3 makes sure it stays on; Tier 2 covers the tools and IDE surfaces that have no built-in story.
+Tiers compose: a developer on Tier 1 today already has a boundary in place (as strong as that tier actually holds — see the warning above); Tier 3 makes sure it stays on; Tier 2 covers the tools and IDE surfaces that have no built-in story.
 
 > [!WARNING]
 > **Secrets in your shell environment defeat the sandbox.** The OS sandboxes confine the filesystem and network but **not environment variables** — a `GITHUB_TOKEN` (or AWS key) exported in your `~/.zshrc` is inherited by every command the agent runs, sandbox or not. Don't put tokens in dotfiles or the environment. Use a repo-scoped, least-privilege credential kept in a credential store: **[Git credentials guide](docs/git-credentials.md)**.
@@ -34,6 +37,7 @@ Tiers compose: a developer on Tier 1 today is protected; Tier 3 makes sure it st
 |-----------|--------------|
 | Seatbelt built-ins (`/sandbox`, Codex, `srt`, `agent.sb`) | macOS 13+ (Ventura and later), Apple Silicon and Intel |
 | Docker Sandboxes (`sbx`) | macOS per Docker's requirements (recent macOS, Apple Silicon) — verify your version |
+| Apple `container` microVMs (emerging) | macOS 26 (Tahoe) + Apple Silicon for full functionality — see [apple-container.md](docs/apple-container.md) |
 | Devcontainer | any Docker-compatible runtime (Colima, Docker Desktop, …) |
 
 Two caveats worth knowing: Apple has **deprecated `sandbox-exec`** (still shipped and used by Codex/Chrome, but a long-term risk — the `srt` and built-in tiers don't depend on the CLI), and **native Windows isn't covered** by these built-in sandboxes (Claude Code needs WSL2). This repo targets an all-macOS fleet.
@@ -45,6 +49,9 @@ From inside Claude Code or Codex — or any coding agent with a terminal — pas
 > Clone `navapbc/ai-coding-assistant-sandboxing` with `gh repo clone`, then run `./setup.sh` from the checkout and tell me which tools to restart.
 
 The agent clones the repo, runs the installer, and reports back; you restart the tool and you're done. `setup.sh` detects which tools you have, installs the user-level baselines from `configs/`, and prints what to restart. Run `./setup.sh --dry-run` first to preview, and re-run after a `git pull` to update.
+
+> [!TIP]
+> **Start here if you have Docker.** If you can run Docker, [**Docker Sandboxes (`sbx`)**](docs/docker-sandbox.md) is the simplest strong-isolation starting point — microVM isolation and TLS-terminating egress filtering, and **free for commercial and professional use as of July 2026** (it needs only a free Docker account to sign in — no per-seat fee, not tied to Docker Desktop licensing). Org-wide governance features are **not free**. No Docker? Use the Tier 1 built-in setup for your tool, below.
 
 The installer configures **Claude Code and Codex**. **Copilot is not file-configured** — there's nothing safe to write unattended, so `setup.sh` only prints guidance. Enable Copilot's sandbox separately: `/sandbox enable` per session in the CLI, or the VS Code terminal-sandbox setting — see [Manual setup](#manual-setup-per-tool) and [copilot.md](docs/copilot.md).
 
@@ -78,11 +85,12 @@ Two design notes so this stays robust:
 | [universal-sandbox-srt.md](docs/universal-sandbox-srt.md) | Wrapping *any* CLI in a Seatbelt + filtering-proxy sandbox (`srt`), plus our raw `sandbox-exec` fallback |
 | [devcontainer.md](docs/devcontainer.md) | Running agents in a container with a default-deny egress firewall |
 | [docker-sandbox.md](docs/docker-sandbox.md) | Docker Sandboxes (`sbx`) — microVM + hostname-filtering proxy, for the Docker-licensed subset |
+| [apple-container.md](docs/apple-container.md) | Apple `container` microVMs (emerging) — why it's promising, its egress gap, and why Container Machine is *not* an agent sandbox |
 | [git-credentials.md](docs/git-credentials.md) | Storing least-privilege GitHub tokens on macOS (1Password / Keychain) — and keeping them out of your shell environment |
 | [agent-git.md](docs/agent-git.md) | How an agent commits/branches in each tier, the monorepo `.git`-in-workspace fix, and how push is gated — consistently across tools |
 | [network-allowlists.md](docs/network-allowlists.md) | The full domain reference: what's allowed, what's never allowed, and why |
 | [enforcement.md](docs/enforcement.md) | Platform team: MDM, managed settings, config precedence, defense-in-depth layering |
-| [policy-matrix.md](docs/policy-matrix.md) | The one-page approved / not-approved matrix per tool and surface |
+| [policy-matrix.md](docs/policy-matrix.md) | The one-page status snapshot of what sandboxing each tool and surface can reach (experimental — not a formal approval) |
 | [troubleshooting.md](docs/troubleshooting.md) | Something was blocked, or a tool fails inside the sandbox |
 
 ## Principles

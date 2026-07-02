@@ -59,7 +59,7 @@ Exact hosts, no broad wildcards — `*.githubusercontent.com` would sweep in use
 
 ### Git credentials: HTTPS + scoped PATs
 
-**SSH is not approved inside sandboxes.** `git@github.com` (port 22) and `ssh.github.com:443` bypass hostname-filtering proxies entirely. Use HTTPS remotes with a fine-grained PAT instead.
+**Don't use SSH inside sandboxes.** `git@github.com` (port 22) and `ssh.github.com:443` bypass hostname-filtering proxies entirely. Use HTTPS remotes with a fine-grained PAT instead.
 
 Scope the PAT to the repositories the developer actually works on — not an org-wide or classic token. This is the control that closes the push-as-exfil channel: `github.com` is multi-tenant, so a token with broad push rights lets a hijacked agent push your workspace to *any* repo on that allowed host ([residual risk](threat-model.md#residual-risks--read-this-before-calling-anything-secure)). A repo-scoped fine-grained PAT makes a push to anywhere else fail authentication, no matter what the agent runs.
 

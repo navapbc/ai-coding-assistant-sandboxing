@@ -11,7 +11,7 @@ Tier 1 and 2 protect a developer who opts in. This tier makes opting out impossi
 | Project | `.claude/settings.json`, `.codex/config.toml`, `.devcontainer/` | Team via PR | Per-stack additions (registries), committed and reviewed |
 | Local | `.claude/settings.local.json` | Developer | Scratch, not committed |
 
-A hybrid of all layers is the goal: the repo carries reviewed, project-appropriate defaults that work out of the box; the user file covers ad-hoc work outside managed repos; the managed file guarantees the floor. Claude Code precedence: **managed > CLI args > local > project > user** — and for boolean keys the managed value simply wins, while array keys *merge* across scopes unless locked (below).
+A hybrid of all layers is the goal: the repo carries reviewed, project-appropriate defaults that work out of the box; the user file covers ad-hoc work outside managed repos; the managed file sets the floor developers can't override (as far as the tool honors it). Claude Code precedence: **managed > CLI args > local > project > user** — and for boolean keys the managed value simply wins, while array keys *merge* across scopes unless locked (below).
 
 ## Claude Code
 
