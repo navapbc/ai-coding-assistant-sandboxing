@@ -1,8 +1,8 @@
-# Docker Sandboxes (`sbx`): Preferred Tier 2 Where Docker Is Available
+# Docker Sandboxes (`sbx`): The Recommended Way to Get Started
 
-For developers who have Docker, **Docker Sandboxes** is the strongest Tier 2 option available — and on two axes it is better than our hand-rolled [devcontainer firewall](devcontainer.md). It runs each agent in a **microVM** (its own kernel, filesystem, and network — a harder boundary than container namespaces), and its built-in host proxy does **TLS-terminating, hostname-level egress filtering** with a default-deny preset. Use it as a drop-in replacement for the devcontainer tier where it's available.
+**If you can run Docker, start here.** Docker Sandboxes is the sandboxing option we recommend reaching for first — ahead of the built-in sandboxes shipped with Claude Code, Codex, and the other AI coding assistants. It runs each agent in a **microVM** (its own kernel, filesystem, and network — a harder boundary than the built-ins' host-level containment or container namespaces), and its built-in host proxy does **TLS-terminating, hostname-level egress filtering** with a default-deny preset. It's tool-agnostic — the same sandbox wraps Claude Code, Codex, and Copilot — so you get one strong boundary instead of a different, weaker one per tool.
 
-It is **not** the fleet default: it covers the developers who have it installed. The native built-ins (Claude Code, Codex) remain the everyday low-friction path for everyone else.
+Why prefer it over the native built-ins? The built-in sandboxes are convenient because they ship with the tool, but they contain the agent within the *host* OS (a Seatbelt/namespace boundary sharing your kernel) and generally can't keep credentials out of the agent's reach. Docker Sandboxes gives you a genuinely stronger isolation boundary (microVM), true layer-7 egress control, and **keeps the credential out of the VM entirely** — for a few minutes of one-time setup. Reach for a tool's built-in sandbox only when Docker isn't available; see the [Tier 1 built-ins](enforcement.md) as the fallback path, and the [devcontainer](devcontainer.md) when you want whole-process containment without Docker.
 
 ## Why it's better than the devcontainer firewall
 
