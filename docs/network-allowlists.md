@@ -162,6 +162,14 @@ Needed during `docker build` / container start, not by the agent at runtime:
 | `ghcr.io`, `pkg-containers.githubusercontent.com` | GitHub container registry (if used) |
 | `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` | Docker Hub (if used) |
 
+## Third-party developer services
+
+Non-package, non-git services an agent may legitimately reach. Each is a dedicated first-party hostname (not multi-tenant storage), added to all three tiers via the [manifest](../configs/allowed-domains.manifest.json).
+
+| Domain | Purpose |
+|--------|---------|
+| `apidocs.snyk.io` | Snyk API documentation / API reference |
+
 ## Never allowlisted — and why
 
 These will appear in error messages, tutorials, and even vendor docs. The answer is no:
