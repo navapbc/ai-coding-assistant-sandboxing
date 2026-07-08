@@ -28,6 +28,7 @@
     { "domain": "claude.ai",                           "purpose": "Claude web / login",                            "tiers": ["claude-user", "claude-managed", "devcontainer"] },
     { "domain": "platform.claude.com",                 "purpose": "Claude platform / console",                     "tiers": ["claude-user", "claude-managed", "devcontainer"] },
     { "domain": "downloads.claude.ai",                 "purpose": "Claude Code updates / downloads",               "tiers": ["claude-user", "claude-managed", "devcontainer"] },
+    { "domain": "apidocs.snyk.io",                     "purpose": "Snyk API documentation / API reference",       "tiers": ["claude-user", "claude-managed", "devcontainer"] },
 
     { "domain": "github.com",                          "purpose": "Git over HTTPS, web",                           "tiers": ["claude-user", "claude-managed"] },
     { "domain": "api.github.com",                      "purpose": "GitHub REST/GraphQL API (gh, PR creation)",     "tiers": ["claude-user", "claude-managed"] },
