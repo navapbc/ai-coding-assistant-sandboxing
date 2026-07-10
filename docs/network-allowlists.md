@@ -98,7 +98,7 @@ GH_TOKEN=$(gh auth token) \
 
 #### Docker Sandboxes (`sbx`) — the token never enters the sandbox at all
 
-If you're on the [Docker Sandboxes tier](docker-sandbox.md), this is the best of the lot: the credential is stored in the host OS keychain (`sbx secret set -g github -t`) and the **host proxy injects the auth header into matching outbound requests — the raw token never enters the microVM.** A hijacked agent inside the sandbox has no token to read or exfiltrate. Still use a repo-scoped fine-grained PAT: injection protects the secret's *confidentiality*, but an injected credential can still authenticate a push to any repo it's authorized for, so scoping is what bounds the blast radius.
+If you're on the [Docker Sandboxes tier](docker-sandbox.md), this is the best of the lot: the credential is stored in the host OS keychain (`sbx secret set -g github` — [set it from Keychain or 1Password](docker-sandbox.md#secrets-from-the-keychain-or-1password-nothing-in-your-history-or-logs) so it never touches shell history) and the **host proxy injects the auth header into matching outbound requests — the raw token never enters the microVM.** A hijacked agent inside the sandbox has no token to read or exfiltrate. Still use a repo-scoped fine-grained PAT: injection protects the secret's *confidentiality*, but an injected credential can still authenticate a push to any repo it's authorized for, so scoping is what bounds the blast radius.
 
 #### Tier 3 — devcontainer: container-local credentials, authenticate once
 
@@ -164,11 +164,7 @@ Needed during `docker build` / container start, not by the agent at runtime:
 
 ## Third-party developer services
 
-Non-package, non-git services an agent may legitimately reach. Each is a dedicated first-party hostname (not multi-tenant storage), added to all three tiers via the [manifest](../configs/allowed-domains.manifest.json).
-
-| Domain | Purpose |
-|--------|---------|
-| `apidocs.snyk.io` | Snyk API documentation / API reference |
+**None are currently in the core list.** The bar for adding one: a dedicated first-party hostname (not multi-tenant storage) that enough of the team reaches to justify shipping it to everyone, added to all three tiers via the [manifest](../configs/allowed-domains.manifest.json). Niche services you personally need (a vendor's API docs, a project-specific registry) don't belong here — add them locally in your own tier instead (e.g. `sbx policy allow network <domain>` on the [Docker Sandboxes tier](docker-sandbox.md#adding-your-own-allowed-domains), or a one-line PR if it truly is team-wide).
 
 ## Never allowlisted — and why
 

@@ -11,7 +11,7 @@ mkdir -p ~/.codex
 cp configs/codex/config.toml ~/.codex/config.toml
 ```
 
-**Already have a `~/.codex/config.toml`?** Don't blind-copy over it — that wipes your model provider, profiles, MCP servers, etc. Instead, merge these keys in by hand (the baseline is small — see below), or let [`setup.sh`](../README.md#quick-install-one-prompt--restart) drop a `config.toml.sandbox-baseline` sidecar next to your file so you can diff and copy the keys across. TOML has no safe automatic merge, which is why neither the copy above nor the installer ever overwrites an existing config.
+**Already have a `~/.codex/config.toml`?** Don't blind-copy over it — that wipes your model provider, profiles, MCP servers, etc. Instead, merge these keys in by hand (the baseline is small — see below), or let [`setup.sh`](../README.md#quick-install-for-the-built-in-tiers-one-prompt--restart) drop a `config.toml.sandbox-baseline` sidecar next to your file so you can diff and copy the keys across. TOML has no safe automatic merge, which is why neither the copy above nor the installer ever overwrites an existing config.
 
 That's it. The baseline gives you:
 
