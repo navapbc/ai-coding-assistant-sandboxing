@@ -7,7 +7,7 @@
 >
 > **Do not develop a false sense of security.** A sandbox that is enabled is not the same as a sandbox that is working as you assume, and "more secure than nothing" is not a property you can take for granted. **Verify every claim before you rely on it** — against the linked vendor docs *and* by testing the actual behavior on your own machine (see the [egress check](docs/troubleshooting.md#verify-your-egress-is-actually-default-deny) and [threat-model.md](docs/threat-model.md)). Vendor docs can be wrong or out of date, defaults change between versions, and a config that protected you yesterday may silently stop doing so after an update. Assume nothing is enforced until you have watched it block something.
 
-**Status:** experimental · last reviewed 2026-07-01
+**Status:** experimental · last reviewed 2026-07-10
 
 Guides and runnable configurations for reducing the blast radius of **Claude Code**, **OpenAI Codex**, and **GitHub Copilot** on developer Macs that handle sensitive data. The goal is to make it substantially harder for an agent compromised by prompt injection to read host secrets or exfiltrate data — a goal these tools work toward, not a guarantee they deliver (see the warning above) — while staying pleasant enough to use that nobody routes around it.
 
@@ -23,7 +23,7 @@ We do not try to predict what commands an agent will run. We **contain** what an
 | Tier | What | Covers | Start here |
 |------|------|--------|------------|
 | **1 — Hardened built-ins** | Each tool's own OS-level sandbox, configured tight | Claude Code (CLI + IDEs), Codex (CLI + VS Code), Copilot CLI (preview) | [claude-code](docs/claude-code.md) · [codex](docs/codex.md) · [copilot](docs/copilot.md) |
-| **2 — Universal isolation** | Devcontainer with default-deny firewall, the `srt` wrapper, or Docker Sandboxes (`sbx`) for anyone with Docker available; Apple `container` microVMs are an emerging option | **All three tools**, including the gaps (Copilot in JetBrains) | [devcontainer](docs/devcontainer.md) · [srt](docs/universal-sandbox-srt.md) · [docker-sandbox](docs/docker-sandbox.md) · [apple-container](docs/apple-container.md) |
+| **2 — Universal isolation** | **Docker Sandboxes (`sbx`) — our default recommendation for anyone with Docker** ([start here](#start-here-docker-sandboxes-sbx)); also the devcontainer with default-deny firewall, the `srt` wrapper, and Apple `container` microVMs as an emerging option | **All three tools**, including the gaps (Copilot in JetBrains) | [docker-sandbox](docs/docker-sandbox.md) · [devcontainer](docs/devcontainer.md) · [srt](docs/universal-sandbox-srt.md) · [apple-container](docs/apple-container.md) |
 | **3 — Org enforcement** | MDM-deployed managed settings that developers can't override | Fleet-wide | [enforcement](docs/enforcement.md) |
 
 Tiers compose: a developer on Tier 1 today already has a boundary in place (as strong as that tier actually holds — see the warning above); Tier 3 makes sure it stays on; Tier 2 covers the tools and IDE surfaces that have no built-in story.
@@ -31,27 +31,43 @@ Tiers compose: a developer on Tier 1 today already has a boundary in place (as s
 > [!WARNING]
 > **Secrets in your shell environment defeat the sandbox.** The OS sandboxes confine the filesystem and network but **not environment variables** — a `GITHUB_TOKEN` (or AWS key) exported in your `~/.zshrc` is inherited by every command the agent runs, sandbox or not. Don't put tokens in dotfiles or the environment. Use a repo-scoped, least-privilege credential kept in a credential store: **[Git credentials guide](docs/git-credentials.md)**.
 
+## Start here: Docker Sandboxes (`sbx`)
+
+If you can run Docker, [**Docker Sandboxes**](docs/docker-sandbox.md) is where we suggest starting, and what we'd reach for by default: it's the lowest-friction path to the strongest boundary in this repo. Each agent runs in a **microVM** behind **TLS-terminating, default-deny egress filtering**, and credentials are injected by a host-side proxy so **the raw token never enters the VM**. One setup covers Claude Code, Codex, and Copilot alike, and it's free for commercial use (free Docker account to sign in; only the org governance tier is paid). Like everything in this repo, it reduces blast radius rather than guaranteeing safety — read the [caveats](docs/docker-sandbox.md#caveats-be-honest-in-the-compliance-record) and [verify the isolation yourself](docs/docker-sandbox.md#verify-the-isolation-is-working) before relying on it.
+
+```bash
+brew trust docker/tap && brew install docker/tap/sbx
+sbx login                                 # pick the "Balanced" (default-deny) preset
+
+sbx secret set -g github                  # paste a repo-scoped fine-grained PAT at the hidden
+                                          # prompt — or pipe it from Keychain/1Password (see guide)
+
+configs/docker-sandbox/apply-policy.sh    # default-deny + this repo's allowlist
+
+cd ~/my-project
+sbx run --clone --name my-task claude     # or: codex, copilot
+```
+
+The [full guide](docs/docker-sandbox.md) covers safe secret setup from Keychain or 1Password, adding your own allowed domains at runtime, the `--clone` trade-offs, per-agent notes (Claude Code `/login`, model selection, Codex, Copilot), sandbox lifecycle and cleanup, environment variables, IDE workflows, and the isolation checks to run before you trust it. **No Docker?** Use the built-in tiers below.
+
 ## Platform support
 
 | Mechanism | Supported on |
 |-----------|--------------|
 | Seatbelt built-ins (`/sandbox`, Codex, `srt`, `agent.sb`) | macOS 13+ (Ventura and later), Apple Silicon and Intel |
-| Docker Sandboxes (`sbx`) | macOS per Docker's requirements (recent macOS, Apple Silicon) — verify your version |
+| Docker Sandboxes (`sbx`) | macOS 14 (Sonoma) and later, Apple Silicon (Windows 11 and Ubuntu 24.04+ also supported) — verify against Docker's requirements |
 | Apple `container` microVMs (emerging) | macOS 26 (Tahoe) + Apple Silicon for full functionality — see [apple-container.md](docs/apple-container.md) |
 | Devcontainer | any Docker-compatible runtime (Colima, Docker Desktop, …) |
 
 Two caveats worth knowing: Apple has **deprecated `sandbox-exec`** (still shipped and used by Codex/Chrome, but a long-term risk — the `srt` and built-in tiers don't depend on the CLI), and **native Windows isn't covered** by these built-in sandboxes (Claude Code needs WSL2). This repo targets an all-macOS fleet.
 
-## Quick install (one prompt + restart)
+## Quick install for the built-in tiers (one prompt + restart)
 
-From inside Claude Code or Codex — or any coding agent with a terminal — paste this prompt:
+No Docker — or you want the per-tool built-in baselines hardened as well (they compose with Docker Sandboxes)? From inside Claude Code or Codex — or any coding agent with a terminal — paste this prompt:
 
 > Clone `navapbc/ai-coding-assistant-sandboxing` with `gh repo clone`, then run `./setup.sh` from the checkout and tell me which tools to restart.
 
 The agent clones the repo, runs the installer, and reports back; you restart the tool and you're done. `setup.sh` detects which tools you have, installs the user-level baselines from `configs/`, and prints what to restart. Run `./setup.sh --dry-run` first to preview, and re-run after a `git pull` to update.
-
-> [!TIP]
-> **Start here if you have Docker.** If you can run Docker, [**Docker Sandboxes (`sbx`)**](docs/docker-sandbox.md) is the simplest strong-isolation starting point — microVM isolation and TLS-terminating egress filtering, and **free for commercial and professional use as of July 2026** (it needs only a free Docker account to sign in — no per-seat fee, not tied to Docker Desktop licensing). Org-wide governance features are **not free**. No Docker? Use the Tier 1 built-in setup for your tool, below.
 
 The installer configures **Claude Code and Codex**. **Copilot is not file-configured** — there's nothing safe to write unattended, so `setup.sh` only prints guidance. Enable Copilot's sandbox separately: `/sandbox enable` per session in the CLI, or the VS Code terminal-sandbox setting — see [Manual setup](#manual-setup-per-tool) and [copilot.md](docs/copilot.md).
 
@@ -70,11 +86,11 @@ Two design notes so this stays robust:
 - **Claude Code** → run `/sandbox`, then copy [`configs/claude-code/settings.user.json`](configs/claude-code/settings.user.json) to `~/.claude/settings.json`. Done in 5 minutes. **For host-level default-deny egress (most solo devs want this), also run `./setup.sh --managed`** — the user baseline alone is *not* default-deny ([why & how](docs/enforcement.md#single-machine-solo-developer-no-mdm)). [Guide](docs/claude-code.md)
 - **Codex CLI** → copy [`configs/codex/config.toml`](configs/codex/config.toml) to `~/.codex/config.toml`. [Guide](docs/codex.md)
 - **Copilot CLI** → run `/sandbox enable` in a session (public preview); for VS Code set [`configs/copilot/vscode-settings.json`](configs/copilot/vscode-settings.json). **Copilot agent mode in JetBrains has no sandbox — use the [devcontainer](docs/devcontainer.md).** [Guide](docs/copilot.md)
-- **Any tool, any IDE — strongest isolation** → the [devcontainer](docs/devcontainer.md) ([`configs/devcontainer/`](configs/devcontainer/)): a **~10-minute [quick start](docs/devcontainer.md#quick-start-10-minutes--mostly-the-one-time-image-build)** to a sandboxed agent in VS Code or JetBrains — the whole process behind default-deny egress. Or — if you have Docker — [Docker Sandboxes](docs/docker-sandbox.md) (`sbx`), the preferred Tier 2 when it's available.
+- **Any tool — whole-process isolation** → [Docker Sandboxes](docs/docker-sandbox.md) (`sbx`) is our default recommendation when Docker is available — see [Start here](#start-here-docker-sandboxes-sbx) above. When you need the agent *inside* VS Code or JetBrains behind default-deny egress (e.g. Copilot agent mode in JetBrains), use the [devcontainer](docs/devcontainer.md) ([`configs/devcontainer/`](configs/devcontainer/)): a **~10-minute [quick start](docs/devcontainer.md#quick-start-10-minutes--mostly-the-one-time-image-build)** to a sandboxed agent in your IDE.
 
 ## Documentation map
 
-**Most developers need only two things: the [Quick install](#quick-install-one-prompt--restart) above and their tool's guide ([Claude Code](docs/claude-code.md) · [Codex](docs/codex.md) · [Copilot](docs/copilot.md)).** Everything below is reference — reach for it when you hit a wall or you're on the platform/security team.
+**Most developers need only two things: [Start here: Docker Sandboxes](#start-here-docker-sandboxes-sbx) above (or the [built-in quick install](#quick-install-for-the-built-in-tiers-one-prompt--restart) without Docker) and their tool's guide ([Claude Code](docs/claude-code.md) · [Codex](docs/codex.md) · [Copilot](docs/copilot.md)).** Everything below is reference — reach for it when you hit a wall or you're on the platform/security team.
 
 | Doc | Read it when |
 |-----|--------------|
@@ -84,7 +100,7 @@ Two design notes so this stays robust:
 | [copilot.md](docs/copilot.md) | Copilot CLI/VS Code sandboxing and the JetBrains gap |
 | [universal-sandbox-srt.md](docs/universal-sandbox-srt.md) | Wrapping *any* CLI in a Seatbelt + filtering-proxy sandbox (`srt`), plus our raw `sandbox-exec` fallback |
 | [devcontainer.md](docs/devcontainer.md) | Running agents in a container with a default-deny egress firewall |
-| [docker-sandbox.md](docs/docker-sandbox.md) | Docker Sandboxes (`sbx`) — microVM + hostname-filtering proxy, for anyone with Docker available |
+| [docker-sandbox.md](docs/docker-sandbox.md) | **The recommended default** — Docker Sandboxes (`sbx`): microVM + hostname-filtering proxy; the full version of [Start here](#start-here-docker-sandboxes-sbx) |
 | [apple-container.md](docs/apple-container.md) | Apple `container` microVMs (emerging) — why it's promising, its egress gap, and why Container Machine is *not* an agent sandbox |
 | [git-credentials.md](docs/git-credentials.md) | Storing least-privilege GitHub tokens on macOS (1Password / Keychain) — and keeping them out of your shell environment |
 | [agent-git.md](docs/agent-git.md) | How an agent commits/branches in each tier, the monorepo `.git`-in-workspace fix, and how push is gated — consistently across tools |

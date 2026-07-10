@@ -21,7 +21,7 @@ Claude Code ships an OS-level Bash sandbox (Seatbelt on macOS) with a domain-fil
    cp configs/claude-code/settings.user.json ~/.claude/settings.json
    ```
 
-   Already have a `~/.claude/settings.json`? Don't overwrite it — run [`setup.sh`](../README.md#quick-install-one-prompt--restart), which deep-merges the baseline in (your keys preserved) and shows a diff before writing, or merge the keys by hand.
+   Already have a `~/.claude/settings.json`? Don't overwrite it — run [`setup.sh`](../README.md#quick-install-for-the-built-in-tiers-one-prompt--restart), which deep-merges the baseline in (your keys preserved) and shows a diff before writing, or merge the keys by hand.
 
 3. Verify it's working — ask Claude to run these and watch them fail:
 

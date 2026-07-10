@@ -58,7 +58,7 @@ Net: **Claude Code and Codex can be genuinely default-on and enforced — includ
 | HTTPS + fine-grained PAT scoped to the developer's repos for git (`Contents: read/write`, plus `Pull requests: write` for `gh pr create`); no SSH inside sandboxes | [network-allowlists.md](network-allowlists.md#git-credentials-https--scoped-pats) |
 | **Never** put production or sensitive data in an agent workspace | Process/policy — sandboxing **cannot** enforce this; the agent can read anything in its workspace by design, so this is a significant risk it does not mitigate ([threat model](threat-model.md#what-sandboxing-does-not-solve)) |
 | Sandbox-weakening keys (`excludedCommands`, `allowAllUnixSockets`, …) flagged in code review | CI grep + review norms ([enforcement](enforcement.md#auditing-the-floor)) |
-| Install never destroys existing developer config | [`setup.sh`](../README.md#quick-install-one-prompt--restart): Claude Code JSON is deep-merged (your keys preserved) with a diff + confirm (default no) and a backup; Codex TOML is never overwritten (fresh-install only, else a `.sandbox-baseline` sidecar); Copilot writes nothing. Non-interactive runs default to no |
+| Install never destroys existing developer config | [`setup.sh`](../README.md#quick-install-for-the-built-in-tiers-one-prompt--restart): Claude Code JSON is deep-merged (your keys preserved) with a diff + confirm (default no) and a backup; Codex TOML is never overwritten (fresh-install only, else a `.sandbox-baseline` sidecar); Copilot writes nothing. Non-interactive runs default to no |
 
 ## Exception process
 
