@@ -217,10 +217,10 @@ Housekeeping notes:
 
 One pass-through rule covers all three: **everything after `--` goes to the agent's own CLI.** A leading *flag* appends to the default flags `sbx` uses; a bare-word first argument *replaces* them entirely.
 
-- **Claude Code** — if you set `sbx secret set -g anthropic`, the API key is injected and no login is needed. **Without an API key — i.e. you use a Claude subscription — run `/login` inside Claude Code on first use** to authenticate via OAuth; the agent will sit unauthenticated until you do. Pick a model at launch with a pass-through flag, or switch mid-session with `/model`:
+- **Claude Code** — if you set `sbx secret set -g anthropic`, the API key is injected and no login is needed. **Without an API key — i.e. you use a Claude subscription — run `/login` inside Claude Code on first use** to authenticate via OAuth; the agent will sit unauthenticated until you do. Pick a model at launch with a pass-through flag, or switch mid-session with `/model` (model IDs change as new models ship; `/model` lists the current ones):
 
   ```bash
-  sbx run --clone claude -- --model claude-fable-5
+  sbx run --clone claude -- --model claude-fable-5-1
   ```
 
 - **Codex** — auth via `sbx secret set -g openai` (API key) or the `--oauth` variant of `secret set` to sign in with a ChatGPT account. Model selection is the same pass-through:
