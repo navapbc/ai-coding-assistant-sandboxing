@@ -21,7 +21,7 @@ A one-page snapshot of **what sandboxing posture each tool and surface can reach
 | Copilot coding agent (cloud) | ✅ Sandboxed (cloud-side) | GitHub-side Actions sandbox with default-on firewall; keep "Recommended allowlist" on |
 | Docker Sandboxes (`sbx`), where Docker is available | ✅ Sandbox available | `deny-all` policy + our allowlist (review kit-added rules), `--clone` mode ([guide](docker-sandbox.md)). Federal gate: clear the Docker-hosted governance SaaS for data residency/authorization before relying on enforced org policy |
 | Any other CLI agent / unlisted tool | ❌ Not assessed | Path to a boundary: wrap in [`srt`](universal-sandbox-srt.md) or run it in [Docker Sandboxes](docker-sandbox.md), then add a row here via PR |
-| Unattended / auto-approved agent runs | ⚠️ Conditional | Only inside [Docker Sandboxes](docker-sandbox.md); never on the host (`disableBypassPermissionsMode` enforces this for Claude Code) |
+| Permission-free agent runs (`--dangerously-skip-permissions`, `--yolo`, …) | ⚠️ Conditional | Only inside [Docker Sandboxes](docker-sandbox.md); never on the host (`disableBypassPermissionsMode` enforces this for Claude Code) |
 
 ## Is it sandboxed by default once configured?
 
@@ -37,7 +37,7 @@ A ✅ above means the boundary *can* be turned on; this table answers whether, o
 | Copilot agent mode, VS Code | ⚠️ Once the setting is set | `chat.tools.terminal.sandbox.enabled` persists, but it's preview and user-toggleable (no documented MDM lock yet) |
 | Copilot agent mode, JetBrains | ❌ Never | No OS sandbox exists for this surface — config cannot turn one on |
 | `srt` / `sandbox-exec` wrapper | ⚠️ Only when launched through it | Running the bare CLI bypasses it — not automatic |
-| Docker Sandboxes (`sbx`) | ✅ While running via `sbx run` | Per-session policy is developer-changeable unless an **org governance policy** is set (then it's the only policy in effect) |
+| Docker Sandboxes (`sbx`) | ✅ While running via `sbx run` | Per-session policy is developer-changeable unless an **org governance policy** is set (then only org allow rules grant access; local denies can still restrict further) |
 
 Two gotchas behind the table:
 

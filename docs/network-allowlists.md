@@ -1,6 +1,6 @@
 # Network Allowlists: The Complete Reference
 
-Every domain any of our sandboxes may permit, with purpose and source. **Default-deny is the rule everywhere: this document is exhaustive — if a domain isn't here, it isn't allowed.** There is no deny list, because a deny list can never be complete; protection against over-allowlisting is structural (managed-settings locks, PR review of these files), not enumerative.
+Every domain any of our sandboxes may permit, with purpose and source. **Default-deny is the rule everywhere: this document is exhaustive — if a domain isn't here, it isn't allowed.** (One exception you have to check yourself: on Docker Sandboxes, agent kits add their own per-sandbox rules — see [kit rules](docker-sandbox.md#network-policy-default-deny--our-allowlist).) There is no deny list, because a deny list can never be complete; protection against over-allowlisting is structural (managed-settings locks, PR review of these files), not enumerative.
 
 Vendors change endpoints; the *Source* links are the authority. Re-verify when bumping tool versions.
 
@@ -121,7 +121,7 @@ Every tier here (the built-in proxies, `srt`, and Docker Sandboxes) filters by h
 
 ## Per-stack: package registries
 
-The **managed (strict) default already includes the common pull registries**, so `pip`, `npm`, `yarn`, `cargo`, `dotnet restore`, `bundle`, Maven, and Gradle work out of the box. They live in the [manifest](../configs/allowed-domains.manifest.json) under the `claude-managed` and `docker-sandbox` tiers. To add a stack under the **strict** posture, edit the **managed** file (a project `.claude/settings.json` is *ignored* under strict — see [enforcement.md](enforcement.md#the-strict-vs-standard-domain-decision)); under standard you can add at project scope (and on Docker Sandboxes, with `sbx policy allow`).
+The **managed (strict) default already includes the common pull registries**, so `pip`, `npm`, `yarn`, `cargo`, `dotnet restore`, `bundle`, Maven, and Gradle work out of the box. They live in the [manifest](../configs/allowed-domains.manifest.json) under the `claude-managed` and `docker-sandbox` tiers. To add a stack under the **strict** posture, edit the **managed** file (a project `.claude/settings.json` is *ignored* under strict — see [enforcement.md](enforcement.md#the-strict-vs-standard-domain-decision)); under the standard posture you can add it at project scope. On Docker Sandboxes, add it to the `docker-sandbox` tier, or locally with `sbx policy allow network`.
 
 | Stack | Domains | In default |
 |-------|---------|:---------:|

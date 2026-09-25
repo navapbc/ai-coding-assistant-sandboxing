@@ -107,6 +107,10 @@ The youngest enforcement story — be honest about it in your compliance docs:
 - **Local sandbox enforcement** ships via Microsoft Intune/MDM with the June 2026 public preview. Until your MDM supports it and it GA's, the enforceable options are the org-level IDE policy plus running Copilot CLI in [Docker Sandboxes](docker-sandbox.md) under an org governance policy.
 - **VS Code:** `chat.agent.networkFilter` is an organization-managed setting for domain restriction; the terminal-sandbox setting itself is user-toggleable during preview.
 
+## Docker Sandboxes
+
+Local `sbx policy` rules (including what [`apply-policy.sh`](../configs/docker-sandbox/apply-policy.sh) sets) are **user-local and developer-changeable**. Non-overridable enforcement needs Docker's **paid org governance** tier: under an org policy, only org allow rules grant access, and local deny rules still apply on top. Since anything the org policy doesn't allow is blocked, carry the `docker-sandbox` allowlist into the org policy rather than relying on each laptop's local rules. Before relying on it for federal work, clear the Docker-hosted Admin Console against your data-residency and authorization requirements. Details: [docker-sandbox.md → fleet enforcement](docker-sandbox.md#fleet-enforcement-requires-the-org-governance-tier).
+
 ## Measuring efficacy
 
 "Looks deployed" isn't "working." Track a few signals so you know the sandbox is both containing threats and not silently driving people around it:
