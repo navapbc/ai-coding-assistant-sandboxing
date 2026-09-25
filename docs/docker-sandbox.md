@@ -89,7 +89,7 @@ Rule of thumb: if the value would hurt you in a log line, it goes through `sbx s
 The proxy listens on the host and is the only way out of the sandbox (it also blocks UDP/ICMP entirely). It has three presets:
 
 - **open** (`allow-all`) — all outbound allowed (don't use)
-- **balanced** — default-deny, plus Docker's baseline allowlist: "AI provider APIs, package managers, code hosts, container registries, and common cloud services". As of v0.35.0 that explicitly includes Azure Blob Storage (`*.blob.core.windows.net`). **We don't use it** — that baseline allows domains on our [never-allowlist](network-allowlists.md#never-allowlisted--and-why), and Docker doesn't publish the full list (only `sbx policy ls` shows it), so you can't review it in advance.
+- **balanced** — default-deny, plus Docker's baseline allowlist: "AI provider APIs, package managers, code hosts, container registries, and common cloud services". As of v0.35.0 that explicitly includes Azure Blob Storage (`*.blob.core.windows.net`). **We don't use it** — that baseline allows domains on our [never-allowlist](network-allowlists.md#never-allowlisted--and-why), and Docker doesn't publish the full list (only `sbx policy ls` shows it), so you can't review it in advance. If you're weighing it anyway, see [the trade-offs](#if-youre-evaluating-the-balanced-preset).
 - **locked down** (`deny-all`) — no baseline allow rules (**our base**)
 
 [`configs/docker-sandbox/apply-policy.sh`](../configs/docker-sandbox/apply-policy.sh) initializes the global policy to `deny-all` and then adds our allowlisted domains via the `sbx policy` CLI, reading [`allowed-domains.txt`](../configs/docker-sandbox/allowed-domains.txt) next to it (kept in sync with the tool-level lists — see the [sync note](network-allowlists.md#keeping-the-allowlists-in-sync)). `sbx policy init` is one-time: if you already chose a preset at `sbx login`, the script's `init` fails harmlessly for `deny-all`; if you chose `Balanced` earlier, switch with `apply-policy.sh --reset`. That runs `sbx policy reset`, which asks to confirm, **stops running sandboxes**, and then prompts you for a preset itself: **pick "3. Locked Down"**. The script ends by printing the policy table (`sbx policy ls`): on deny-all it lists only `local` and `kit` policies (plus `org` under org governance), and `local` holds exactly the allowlist's rules. Treat any other row as a sign a preset baseline may still be active. We've verified what the table looks like on Locked Down, but not yet how Balanced appears in it.
@@ -99,6 +99,36 @@ The proxy listens on the host and is the only way out of the sandbox (it also bl
 Rules accept exact hostnames, wildcard subdomains, an optional `:port`, and CIDR ranges; **deny always wins** over allow. The same never-allowlist rule applies — no cloud-provider storage domains ([why](network-allowlists.md#never-allowlisted--and-why)).
 
 > **Note on the policy store.** We drive policy through the documented `sbx policy` CLI rather than a config file: as of this writing the on-disk format of the *local* policy store isn't documented, so a hand-authored file would be guesswork. The CLI is the supported, stable interface.
+
+### If you're evaluating the Balanced preset
+
+This isn't a recommendation. Locked Down plus our allowlist is the default this repo supports. But Balanced is the option `sbx login` highlights, and it's a reasonable thing to weigh, so here are the trade-offs as we understand them.
+
+**What you gain:**
+
+- **Less friction.** Docker's baseline covers the everyday development traffic ("AI provider APIs, package managers, code hosts, container registries, and common cloud services", plus VS Code domains as of v0.35.0). Installs, image pulls, and editor tooling that would hit a 403 under Locked Down tend to just work.
+- **Someone else maintains it.** Docker updates the baseline as ecosystems move (for example, a later release added the NodeSource APT repository), so you're not waiting on a PR to this repo when a registry changes hosts.
+
+**What you give up:**
+
+- **It allows domains on our never-list.** The baseline explicitly includes Azure Blob Storage (`*.blob.core.windows.net`), and "common cloud services" is broad. Multi-tenant storage is a ready-made exfiltration channel: an attacker can receive data on their own bucket under the same domain ([why](network-allowlists.md#never-allowlisted--and-why)).
+- **You can't review it in advance, and it changes under you.** The full list isn't published, and it's tied to the `sbx` version. A routine `brew upgrade` can widen your egress with no change to your config and no PR anyone reviews.
+- **Your allowlist stops being the source of truth.** Under Locked Down, "what can the agent reach?" has a short answer: our allowlist plus the kit rules. Under Balanced, the answer is our allowlist plus the kit rules plus whatever this release of Docker's baseline contains.
+
+**If you evaluate it anyway,** treat it as a deliberate, recorded decision rather than a default:
+
+1. List the baseline on your installed version with `sbx policy ls --wide` and compare it against the [never-list](network-allowlists.md#never-allowlisted--and-why).
+2. Add explicit denies for the never-list. Docker documents that deny rules take precedence over allow rules for the same host. We haven't confirmed that a wildcard deny beats a more specific baseline allow, so step 3 is where you confirm it. Use `**.` wildcards, because `*.` matches only one subdomain level (S3 hosts look like `bucket.s3.us-east-1.amazonaws.com`) and neither form matches the bare domain:
+
+   ```bash
+   sbx policy deny network "**.amazonaws.com,**.googleapis.com,**.blob.core.windows.net,**.azurefd.net,**.cloudfront.net,**.r2.dev"
+   sbx policy deny network "pastebin.com,transfer.sh,file.io"
+   ```
+
+3. Confirm the denies hold: `sbx policy check network example.blob.core.windows.net` should report denied, and the [egress checks](#verify-the-isolation-is-working) should fail for those hosts.
+4. Repeat steps 1–3 after every `sbx` upgrade, since the baseline can change between releases.
+
+Two caveats. **Denying a whole cloud domain also blocks whatever legitimately runs there**; it may be why some of those domains are in the baseline to begin with (VS Code extension downloads and some registries' layer storage are plausible examples, which we haven't verified). And **this repo doesn't test Balanced**: we haven't confirmed the full baseline contents, how its rules appear in `sbx policy ls`, or that the deny list above is complete. On a fleet, make this call in the org governance policy rather than per laptop: under org governance only org allow rules grant access, though local denies still apply ([below](#fleet-enforcement-requires-the-org-governance-tier)).
 
 ## Adding your own allowed domains
 
