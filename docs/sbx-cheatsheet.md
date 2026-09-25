@@ -98,6 +98,19 @@ Secret changes reach existing sandboxes without a restart. Inside the VM the age
 
 Treat a kit like a dependency: its network rules bypass our allowlist for that sandbox. Built-in `claude`/`codex` can't take v3 mixins. [Details](docker-sandbox.md#kits-for-teams).
 
+## Declarative setup: `sbx env` (experimental)
+
+Describe a sandbox in `sbxenv.yaml` (agent, workspace, `clone`, env, resources, ports, secret sources) and share it with the team. [Example and cautions](docker-sandbox.md#declarative-setup-with-sbx-env-experimental).
+
+| Task | Command |
+|------|---------|
+| See what it would do (changes nothing) | `sbx env plan` |
+| Approve, create if needed, attach | `sbx env run` |
+| Run a command in it | `sbx env exec -- npm test` |
+| Remove it and its sandbox-scoped secrets | `sbx env rm` |
+
+A `lifecycle:` block runs commands **on your Mac**, so read the plan before approving, and review `sbxenv.yaml` changes like CI config. Never put a literal secret `value` in the file.
+
 ## The dashboard (TUI)
 
 Run `sbx` with no arguments (or `sbx tui`) for a terminal dashboard. Sandboxes appear as cards with live status, CPU, and memory.

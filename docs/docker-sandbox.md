@@ -290,6 +290,59 @@ Kits can also come from a local directory or a Git reference (`git+https://…#r
 
 **Version gotcha:** the current (v3) kit format needs `sbx` 0.45+, and v3 kits can't mix with v1/v2 kits. The built-in `claude`/`codex` shortcuts use v2, so `sbx run claude --kit <v3-mixin>` fails — pick a v3 workload by reference instead. Authoring (descriptors, building with Buildx, signing) is in Docker's [kit docs](https://docs.docker.com/ai/sandboxes/customize/).
 
+## Declarative setup with `sbx env` (experimental)
+
+`sbx env` creates a sandbox from a `sbxenv.yaml` file instead of a string of CLI flags — roughly Docker Compose for sandboxes. A team commits one file so everyone gets the same agent, workspace mode, kits, env vars, resources, ports, and secret *sources*. Docker marks it **experimental**: the commands and file format may change, so re-check [Docker's reference](https://docs.docker.com/ai/sandboxes/configuration/environment-files/) when you upgrade `sbx`.
+
+Docker recommends keeping the file **outside** the directories it mounts, e.g. beside the repo:
+
+```text
+my-app-env/
+├── sbxenv.yaml
+└── my-app/          # the git repo
+```
+
+```yaml
+# my-app-env/sbxenv.yaml
+schemaVersion: "1"
+name: my-app
+agent: claude
+workspace:
+  path: ./my-app
+  clone: true                   # same as `sbx run --clone`
+env:
+  NODE_ENV: test                # config only — readable inside the VM
+sandboxOptions:
+  cpus: 4
+  memory: 8g
+secrets:
+  github:
+    ref: op://Private/GitHub-my-app/token   # a repo-scoped PAT, resolved on the host
+ports:
+  - sandbox: 3000
+    host: 3000                  # binds to loopback on the host by default
+```
+
+```bash
+cd my-app-env
+sbx env plan                    # show what it would do — changes nothing
+sbx env run                     # show the plan, ask to approve, create if needed, attach
+sbx env exec -- npm test        # run a command in the existing sandbox
+sbx env rm                      # remove the sandbox and the secrets it provisioned
+```
+
+Things to know:
+
+- **Secrets here are sandbox-scoped**, not global: `sbx env` stores them for this sandbox, and `sbx env rm` removes them. Use `ref` (1Password `op://…` or an AWS Secrets Manager ARN) or `command`; **never `value`**, which puts the literal secret in the file.
+- **Network policy isn't part of the file.** Egress still comes from the global policy [`apply-policy.sh`](../configs/docker-sandbox/apply-policy.sh) sets, plus any rules from kits the file adds (the kit caution in [Kits for teams](#kits-for-teams) applies).
+- **Changes need a recreate.** Updated `env` values apply to the next session, but workspaces, kits, ports, secrets, and `sandboxOptions` only change when the sandbox is created again (`sbx env rm`, then `sbx env run`).
+- **A `lifecycle:` block runs commands on your Mac, with your privileges, outside the sandbox** (`initialize` runs on every `create` and `run`). That makes `sbxenv.yaml` executable config, like a CI file or a `Makefile`:
+  - **Read the plan before approving it.** It lists every host command, secret reference, port, and env var.
+  - **Review changes to `sbxenv.yaml` like CI config.** If it's committed to the repo, an agent that can commit could propose a lifecycle command that later runs on a teammate's machine ([workspace poisoning](threat-model.md#residual-risks--read-this-before-calling-anything-secure)).
+  - **Keep the file out of any directory a sandbox can write**, per Docker's guidance.
+  - **Use `--auto-approve` only in automation, on files you already trust.** It skips the review for that run.
+- **`~/.sbxenv.yaml` sets personal defaults** that merge underneath a project file (its `workspace` must be `${{ env.projectDir }}` or a subdirectory of it).
+
 ## Using it with an IDE (VS Code, JetBrains)
 
 Be aware of the gap: **there is no official IDE-attach integration** for `sbx` sandboxes — no Dev Containers "attach", no JetBrains Gateway target (verified against Docker's docs as of this writing; the deprecated Docker-Desktop `docker sandbox` integration is not this). What works today:
