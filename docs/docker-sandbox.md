@@ -20,7 +20,7 @@ Requirements: macOS 14 (Sonoma) or later on Apple silicon. (Windows 11 and Ubunt
    brew trust docker/tap && brew install docker/tap/sbx
    ```
 
-2. **Sign in** — opens a browser for Docker-account OAuth, then asks you to pick a network preset. **Choose `Balanced`** (default-deny with an AI-provider baseline); you can change it later.
+2. **Sign in** — opens a browser for Docker-account OAuth, then asks you to pick a network preset. **Choose `Locked Down`** (deny-all) — `apply-policy.sh` in step 4 then adds only this repo's allowlist. Don't pick `Balanced`: it ships Docker's own baseline allowlist, which includes cloud storage ([why that matters](#network-policy-default-deny--our-allowlist)).
 
    ```bash
    sbx login
@@ -88,17 +88,21 @@ Rule of thumb: if the value would hurt you in a log line, it goes through `sbx s
 
 The proxy listens on the host and is the only way out of the sandbox (it also blocks UDP/ICMP entirely). It has three presets:
 
-- **open** — all outbound allowed (don't use)
-- **balanced** — **default-deny with a baseline allowlist for AI-provider APIs** (our base)
-- **locked down** — all outbound blocked
+- **open** (`allow-all`) — all outbound allowed (don't use)
+- **balanced** — default-deny, plus Docker's baseline allowlist: "AI provider APIs, package managers, code hosts, container registries, and common cloud services". As of v0.35.0 that explicitly includes Azure Blob Storage (`*.blob.core.windows.net`). **We don't use it** — that baseline allows domains on our [never-allowlist](network-allowlists.md#never-allowlisted--and-why), and Docker doesn't publish the full list (only `sbx policy ls` shows it), so you can't review it in advance.
+- **locked down** (`deny-all`) — no baseline allow rules (**our base**)
 
-[`configs/docker-sandbox/apply-policy.sh`](../configs/docker-sandbox/apply-policy.sh) sets the default to `balanced` and then adds our allowlisted domains via the `sbx policy` CLI, reading [`allowed-domains.txt`](../configs/docker-sandbox/allowed-domains.txt) next to it (kept in sync with the tool-level lists — see the [sync note](network-allowlists.md#keeping-the-allowlists-in-sync)). `github.com`/`api.github.com` aren't in that file because `balanced` already allows code hosts. Rules accept exact hostnames, wildcard subdomains, an optional `:port`, and CIDR ranges; **deny always wins** over allow. The same never-allowlist rule applies — no cloud-provider storage domains ([why](network-allowlists.md#never-allowlisted--and-why)).
+[`configs/docker-sandbox/apply-policy.sh`](../configs/docker-sandbox/apply-policy.sh) initializes the global policy to `deny-all` and then adds our allowlisted domains via the `sbx policy` CLI, reading [`allowed-domains.txt`](../configs/docker-sandbox/allowed-domains.txt) next to it (kept in sync with the tool-level lists — see the [sync note](network-allowlists.md#keeping-the-allowlists-in-sync)). `sbx policy init` is one-time: if you already chose a preset at `sbx login`, the script's `init` fails harmlessly for `deny-all`; if you chose `Balanced` earlier, switch with `apply-policy.sh --reset` (runs `sbx policy reset`, which asks to confirm and **stops running sandboxes**). The script ends with a preset check that should list **no** preset allow rules.
+
+**Kits can still add rules.** Even under `deny-all`, built-in agent kits (the `claude`, `codex`, … agents) and any kit you pass with `--kit` add their own **per-sandbox** allow rules — typically for their own API. Review them once per agent, and treat anything outside our allowlist as a finding: `sbx policy ls <sandbox> --source kit --type network --wide`. A global `sbx policy deny network <host>` overrides a kit's allow if you need to remove one.
+
+Rules accept exact hostnames, wildcard subdomains, an optional `:port`, and CIDR ranges; **deny always wins** over allow. The same never-allowlist rule applies — no cloud-provider storage domains ([why](network-allowlists.md#never-allowlisted--and-why)).
 
 > **Note on the policy store.** We drive policy through the documented `sbx policy` CLI rather than a config file: as of this writing the on-disk format of the *local* policy store isn't documented, so a hand-authored file would be guesswork. The CLI is the supported, stable interface.
 
 ## Adding your own allowed domains
 
-Local rules are **additive**: they stack on top of the `balanced` preset and the allowlist applied by `apply-policy.sh`, and they take effect **immediately** — no sandbox restart. So when an agent hits a blocked domain mid-task (the request fails with a structured `403` naming the rule), you can unblock it from the host and let the agent retry:
+Local rules are **additive**: they stack on top of the `deny-all` baseline and the allowlist applied by `apply-policy.sh`, and they take effect **immediately** — no sandbox restart. So when an agent hits a blocked domain mid-task (the request fails with a structured `403` naming the rule), you can unblock it from the host and let the agent retry:
 
 ```bash
 sbx policy allow network api.example.com                           # all sandboxes
@@ -114,7 +118,7 @@ sbx policy log         # recent connections: host, matching rule, allowed/blocke
 sbx policy rm network --resource api.example.com    # remove a rule (or: --id <uuid>)
 ```
 
-Niche, personal-use domains are exactly what this local path is for — they don't need to go into the repo's core allowlist. Two rules still stand, though: **never allow cloud-provider storage or paste domains** ([why](network-allowlists.md#never-allowlisted--and-why)) — deny rules win, but don't add allow rules for them either — and remember these rules are **user-local and developer-changeable**, so they're convenience, not enforcement ([governance below](#fleet-enforcement-requires-the-org-governance-tier)). One reset caveat: `sbx policy reset` wipes local rules back to the preset — re-run `apply-policy.sh` afterwards.
+Niche, personal-use domains are exactly what this local path is for — they don't need to go into the repo's core allowlist. Two rules still stand, though: **never allow cloud-provider storage or paste domains** ([why](network-allowlists.md#never-allowlisted--and-why)) — deny rules win, but don't add allow rules for them either — and remember these rules are **user-local and developer-changeable**, so they're convenience, not enforcement ([governance below](#fleet-enforcement-requires-the-org-governance-tier)). One reset caveat: `sbx policy reset` deletes every local rule and the preset choice — re-run `apply-policy.sh` afterwards.
 
 ## Clone mode vs. direct mount: the trade-offs
 
@@ -141,6 +145,10 @@ Before trusting any of this, watch it work. From a shell **inside the sandbox** 
 curl -s -o /dev/null -w '%{http_code}\n' https://www.cms.gov    # expect 403 (blocked)
 curl -sS https://example.com                                     # expect a 403 with a structured
                                                                  # body naming the policy/rule
+curl -s -o /dev/null -w '%{http_code}\n' https://example.blob.core.windows.net
+                                                                 # expect 403 — this one is allowed
+                                                                 # under Balanced, so a 403 proves
+                                                                 # you're really on deny-all
 # …and allowlisted ones succeed:
 curl -s https://api.github.com/zen                               # expect a 200 and a koan
 
@@ -152,7 +160,7 @@ ls /Users               # host home directories aren't there
 env | grep -iE 'token|api_key'   # expect sentinel/placeholder values, not real secrets
 ```
 
-Meanwhile **on the host**, `sbx policy log` should show those blocked requests with the rule that matched — that's your evidence the proxy, not luck, stopped them. This is the same egress check we use for the other tiers ([troubleshooting](troubleshooting.md#verify-your-egress-is-actually-default-deny)); re-run it after CLI updates and preset changes, not just once.
+Meanwhile **on the host**, `sbx policy log` should show those blocked requests with the rule that matched — that's your evidence the proxy, not luck, stopped them. You can also ask the policy engine directly, without a sandbox: `sbx policy check network example.blob.core.windows.net` should report it denied. This is the same egress check we use for the other tiers ([troubleshooting](troubleshooting.md#verify-your-egress-is-actually-default-deny)); re-run it after CLI updates and preset changes, not just once.
 
 ## Managing sandboxes: stop, resume, remove
 

@@ -37,7 +37,7 @@ If you can run Docker, [**Docker Sandboxes**](docs/docker-sandbox.md) is where w
 
 ```bash
 brew trust docker/tap && brew install docker/tap/sbx
-sbx login                                 # pick the "Balanced" (default-deny) preset
+sbx login                                 # pick the "Locked Down" (deny-all) preset
 
 sbx secret set -g github                  # paste a repo-scoped fine-grained PAT at the hidden
                                           # prompt — or pipe it from Keychain/1Password (see guide)
