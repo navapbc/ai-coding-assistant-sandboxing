@@ -20,6 +20,7 @@
 #   --reset          run `sbx policy reset` first (asks for confirmation; stops
 #                    running sandboxes). Needed to switch an existing install
 #                    from another preset, since `sbx policy init` is one-time.
+#                    sbx then prompts for a preset itself: pick "Locked Down".
 #
 # Fleet note: rules set here are USER-LOCAL and developer-changeable. For
 # non-overridable enforcement, set an organization policy in the Docker Admin
@@ -50,19 +51,26 @@ if [[ ! -r "$DOMAINS_FILE" ]]; then
 fi
 
 if [[ "$RESET" == true ]]; then
-  echo "Resetting the local policy store (sbx will ask to confirm)..."
+  echo "Resetting the local policy store. sbx will ask you to confirm, then to"
+  echo "choose a preset: pick \"3. Locked Down\" (that is deny-all)."
+  echo
   sbx policy reset
 fi
 
 # Deny-all baseline: nothing leaves the sandbox unless an allow rule below (or a
 # kit's per-sandbox rule) permits it. `init` is one-time, so it fails if a preset
-# was already chosen (e.g. at `sbx login`). That's fine if it was deny-all; the
-# preset check at the end shows which it was.
+# was already chosen (at `sbx login`, or at the prompt after a reset). That's
+# fine if it was Locked Down; the policy table at the end shows which it was.
 echo "Initializing global policy to 'deny-all'..."
-if ! sbx policy init deny-all; then
-  echo "WARNING: 'sbx policy init deny-all' failed — a preset is probably already" >&2
-  echo "set. If the preset check below lists allow rules, it isn't deny-all:" >&2
-  echo "re-run with --reset." >&2
+if init_out="$(sbx policy init deny-all 2>&1)"; then
+  echo "$init_out"
+elif grep -q 'already initialized' <<<"$init_out"; then
+  echo "  A preset was already chosen, so init was skipped. Check the policy table"
+  echo "  at the end to confirm it's Locked Down."
+else
+  echo "$init_out" >&2
+  echo "ERROR: 'sbx policy init deny-all' failed unexpectedly." >&2
+  exit 1
 fi
 
 echo "Allowing domains from $DOMAINS_FILE ..."
@@ -78,7 +86,12 @@ echo
 echo "Current policy:"
 sbx policy ls ${SANDBOX_ARGS[@]+"${SANDBOX_ARGS[@]}"}
 echo
-echo "Preset check — rules created by a preset (expect NO allow rules under deny-all):"
+echo "Check it's deny-all: the table above should list only 'local' and 'kit'"
+echo "policies (plus 'org' if your org governs sandboxes). Any other row is"
+echo "unexpected and may be a preset baseline such as Balanced: re-run with"
+echo "--reset and pick \"3. Locked Down\"."
+echo
+echo "Preset-created rules (expect none):"
 sbx policy ls --created-via default --type network --wide
 echo
 echo "Done. Reminder: cloud-provider storage domains must never be added"
