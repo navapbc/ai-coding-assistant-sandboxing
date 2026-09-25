@@ -19,7 +19,7 @@ A one-page snapshot of **what sandboxing posture each tool and surface can reach
 | Copilot agent mode, JetBrains, on host | ❌ **No sandbox** | No OS sandbox exists for this surface, and this repo offers no sandboxed alternative for in-IDE agent mode. Use Copilot CLI with the sandbox (or in [Docker Sandboxes](docker-sandbox.md)) instead. Org policy can disable IDE agent mode ([enforcement](enforcement.md)) |
 | Copilot completions (any IDE) | ✅ Nothing to sandbox | Completions suggest text and execute nothing |
 | Copilot coding agent (cloud) | ✅ Sandboxed (cloud-side) | GitHub-side Actions sandbox with default-on firewall; keep "Recommended allowlist" on |
-| Docker Sandboxes (`sbx`), where Docker is available | ✅ Sandbox available | `balanced` (default-deny) policy + allowlist, `--clone` mode ([guide](docker-sandbox.md)). Federal gate: clear the Docker-hosted governance SaaS for data residency/authorization before relying on enforced org policy |
+| Docker Sandboxes (`sbx`), where Docker is available | ✅ Sandbox available | `deny-all` policy + our allowlist (review kit-added rules), `--clone` mode ([guide](docker-sandbox.md)). Federal gate: clear the Docker-hosted governance SaaS for data residency/authorization before relying on enforced org policy |
 | Any other CLI agent / unlisted tool | ❌ Not assessed | Path to a boundary: wrap in [`srt`](universal-sandbox-srt.md) or run it in [Docker Sandboxes](docker-sandbox.md), then add a row here via PR |
 | Unattended / auto-approved agent runs | ⚠️ Conditional | Only inside [Docker Sandboxes](docker-sandbox.md); never on the host (`disableBypassPermissionsMode` enforces this for Claude Code) |
 

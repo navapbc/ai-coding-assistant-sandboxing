@@ -1,13 +1,12 @@
-# allowed-domains.txt — the domains apply-policy.sh adds on top of Docker
-# Sandboxes' 'balanced' (default-deny) preset. One domain per line; lines
-# starting with # are ignored. Changes to this file are code-reviewed.
+# allowed-domains.txt — the ONLY domains apply-policy.sh allows on top of
+# Docker Sandboxes' 'deny-all' preset (built-in agent kits may add their own
+# per-sandbox rules). One domain per line; lines starting with # are ignored.
+# Changes to this file are code-reviewed.
 #
 # NEVER add cloud-provider storage domains (*.amazonaws.com, *.googleapis.com,
 # *.blob.core.windows.net, *.cloudfront.net) or paste/transfer sites — they are
 # multi-tenant endpoints an attacker can receive data on.
 #
-# github.com / api.github.com are not listed: the 'balanced' preset already
-# allows code hosts (confirm with `sbx policy ls`).
 
 # --- AI assistant APIs ---
 api.anthropic.com
@@ -24,7 +23,9 @@ copilot-proxy.githubusercontent.com
 origin-tracker.githubusercontent.com
 default.exp-tas.com
 
-# --- GitHub content hosts ---
+# --- GitHub ---
+github.com
+api.github.com
 raw.githubusercontent.com
 objects.githubusercontent.com
 codeload.github.com
