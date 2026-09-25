@@ -98,7 +98,7 @@ GH_TOKEN=$(gh auth token) \
 
 #### Docker Sandboxes (`sbx`) — the token never enters the sandbox at all
 
-If you're on the [Docker Sandboxes tier](docker-sandbox.md), this is the best of the lot: the credential is stored in the host OS keychain (`sbx secret set -g github` — [set it from Keychain or 1Password](docker-sandbox.md#secrets-from-the-keychain-or-1password-nothing-in-your-history-or-logs) so it never touches shell history) and the **host proxy injects the auth header into matching outbound requests — the raw token never enters the microVM.** A hijacked agent inside the sandbox has no token to read or exfiltrate. Still use a repo-scoped fine-grained PAT: injection protects the secret's *confidentiality*, but an injected credential can still authenticate a push to any repo it's authorized for, so scoping is what bounds the blast radius.
+If you're on the [Docker Sandboxes tier](docker-sandbox.md), this is the best of the lot: the credential is stored in the host OS keychain (`sbx secret set github` — [set it from Keychain or 1Password](docker-sandbox.md#secrets-from-the-keychain-or-1password-nothing-in-your-history-or-logs) so it never touches shell history) and the **host proxy injects the auth header into matching outbound requests — the raw token never enters the microVM.** A hijacked agent inside the sandbox has no token to read or exfiltrate. Still use a repo-scoped fine-grained PAT: injection protects the secret's *confidentiality*, but an injected credential can still authenticate a push to any repo it's authorized for, so scoping is what bounds the blast radius.
 
 #### Prohibited in every tier
 

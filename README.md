@@ -39,7 +39,7 @@ If you can run Docker, [**Docker Sandboxes**](docs/docker-sandbox.md) is where w
 brew trust docker/tap && brew install docker/tap/sbx
 sbx login                                 # pick the "Locked Down" (deny-all) preset
 
-sbx secret set -g github                  # paste a repo-scoped fine-grained PAT at the hidden
+sbx secret set github                     # paste a repo-scoped fine-grained PAT at the hidden
                                           # prompt — or pipe it from Keychain/1Password (see guide)
 
 configs/docker-sandbox/apply-policy.sh    # default-deny + this repo's allowlist
@@ -48,7 +48,7 @@ cd ~/my-project
 sbx run --clone --name my-task claude     # or: codex, copilot
 ```
 
-The [full guide](docs/docker-sandbox.md) covers safe secret setup from Keychain or 1Password, adding your own allowed domains at runtime, the `--clone` trade-offs, per-agent notes (Claude Code `/login`, model selection, Codex, Copilot), sandbox lifecycle and cleanup, environment variables, IDE workflows, and the isolation checks to run before you trust it. **No Docker?** Use the built-in tiers below.
+Keep the [cheat sheet](docs/sbx-cheatsheet.md) open while you work. The [full guide](docs/docker-sandbox.md) covers safe secret setup from Keychain or 1Password, adding your own allowed domains at runtime, the `--clone` trade-offs, per-agent notes (Claude Code `/login`, model selection, Codex, Copilot), sandbox lifecycle and cleanup, environment variables, IDE workflows, and the isolation checks to run before you trust it. **No Docker?** Use the built-in tiers below.
 
 ## Platform support
 
@@ -99,6 +99,7 @@ Two design notes so this stays robust:
 | [copilot.md](docs/copilot.md) | Copilot CLI/VS Code sandboxing and the JetBrains gap |
 | [universal-sandbox-srt.md](docs/universal-sandbox-srt.md) | Wrapping *any* CLI in a Seatbelt + filtering-proxy sandbox (`srt`), plus our raw `sandbox-exec` fallback |
 | [docker-sandbox.md](docs/docker-sandbox.md) | **The recommended default** — Docker Sandboxes (`sbx`): microVM + hostname-filtering proxy; the full version of [Start here](#start-here-docker-sandboxes-sbx) |
+| [sbx-cheatsheet.md](docs/sbx-cheatsheet.md) | A 1–2 page `sbx` command reference (run, fetch, clean up, network policy, secrets, the dashboard) to keep open while you work |
 | [apple-container.md](docs/apple-container.md) | Apple `container` microVMs (emerging) — why it's promising, its egress gap, and why Container Machine is *not* an agent sandbox |
 | [git-credentials.md](docs/git-credentials.md) | Storing least-privilege GitHub tokens on macOS (1Password / Keychain) — and keeping them out of your shell environment |
 | [agent-git.md](docs/agent-git.md) | How an agent commits/branches in each tier, the monorepo `.git`-in-workspace fix, and how push is gated — consistently across tools |

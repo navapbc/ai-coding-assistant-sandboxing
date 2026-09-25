@@ -4,6 +4,8 @@
 
 Why prefer it over the native built-ins? The built-in sandboxes are convenient because they ship with the tool, but they contain the agent within the *host* OS (a Seatbelt/namespace boundary sharing your kernel) and generally can't keep credentials out of the agent's reach. Docker Sandboxes gives you a genuinely stronger isolation boundary (microVM), true layer-7 egress control, and **keeps the credential out of the VM entirely** — for a few minutes of one-time setup. Reach for a tool's built-in sandbox only when Docker isn't available; see the [Tier 1 built-ins](../README.md#three-tiers) as the fallback path, and the [`srt` wrapper](universal-sandbox-srt.md) when you want one tool-agnostic boundary without Docker.
 
+> **Already set up?** The [`sbx` cheat sheet](sbx-cheatsheet.md) is the one-to-two-page command reference for day-to-day use, including the dashboard (TUI).
+
 ## Credentials never enter the VM
 
 This is the standout: it resolves the [core constraint](network-allowlists.md#the-core-constraint-read-before-choosing-a-recipe) we documented for every other tier. Elsewhere, "anything `git` can read, the agent can read." Here the secret is stored in the host OS keychain and the proxy attaches it to outbound requests matching the right host — so a hijacked agent inside the VM has no token to exfiltrate. (Scope the credential anyway; see [caveats](#caveats-be-honest-in-the-compliance-record).)
@@ -26,12 +28,14 @@ Requirements: macOS 14 (Sonoma) or later on Apple silicon. (Windows 11 and Ubunt
    sbx login
    ```
 
-3. **Store credentials** — set them *before* creating sandboxes: global (`-g`) secrets are injected at sandbox **creation** time, so a sandbox created earlier won't pick up a new global secret until you recreate it. (A per-sandbox secret — `sbx secret set <sandbox-name> <service>` — can be added any time and overrides the global one.) Use the prompt or a keychain pipe so the token never touches your shell history — see [the secrets section below](#secrets-from-the-keychain-or-1password-nothing-in-your-history-or-logs).
+3. **Store credentials** — service secrets are **global by default** (every sandbox gets them), and adding, updating, or removing one takes effect in existing sandboxes without a restart. To scope one to a single sandbox, add `--sandbox <name>`; a sandbox-scoped secret overrides the global one. Use the prompt, a pipe, or a stored reference so the token never touches your shell history — see [the secrets section below](#secrets-from-the-keychain-or-1password-nothing-in-your-history-or-logs).
 
    ```bash
-   sbx secret set -g anthropic      # paste at the hidden prompt (skip if you use /login instead)
-   sbx secret set -g github         # paste a repo-scoped fine-grained PAT
+   sbx secret set anthropic      # paste at the hidden prompt (skip if you use /login instead)
+   sbx secret set github         # paste a repo-scoped fine-grained PAT
    ```
+
+   (Older guides, including earlier versions of this one, write `sbx secret set -g …`. Docker's current CLI reference doesn't list `-g`: global is simply the default.)
 
 4. **Lock egress to default-deny + our allowlist** (details in the [network policy section](#network-policy-default-deny--our-allowlist)):
 
@@ -54,35 +58,45 @@ One thing to be clear-eyed about: by default `sbx` launches the agents in their 
 
 ## Secrets from the Keychain or 1Password (nothing in your history or logs)
 
-Never pass a token as a command-line argument — it lands in your shell history and is visible to other processes via `ps` while the command runs. There *is* a `-t/--token` flag, but Docker's own help text labels it "less secure: visible in shell history" — skip it and use the interactive prompt or a pipe instead. Two good patterns:
+Never pass a token as a command-line argument — it lands in your shell history and is visible to other processes via `ps` while the command runs. There *is* a `-t/--token` flag, but Docker's own help text labels it "less secure: visible in shell history" — skip it and use the interactive prompt, a pipe, or a stored reference instead. Good patterns:
 
 **macOS Keychain.** Store the PAT once (the `-w` flag with no value prompts interactively, so the secret never appears on the command line), then pipe it in:
 
 ```bash
 security add-generic-password -s my-gh-token -a "$USER" -U -w    # prompts for the secret
-security find-generic-password -s my-gh-token -w | sbx secret set -g github
+security find-generic-password -s my-gh-token -w | sbx secret set github
 ```
 
 **1Password CLI.** Read the field by secret reference and pipe it in (biometric-gated, nothing in history):
 
 ```bash
-op read "op://Private/GitHub/token" | sbx secret set -g github
+op read "op://Private/GitHub/token" | sbx secret set github
 # or, by item and field name:
-op item get GitHub --fields token --reveal | sbx secret set -g github
+op item get GitHub --fields token --reveal | sbx secret set github
 ```
 
-The same pattern works for the other services (`sbx secret set -g anthropic`, `-g openai`, …). If you must go fastest, `gh auth token | sbx secret set -g github` also avoids history — but the gh CLI's OAuth token is broadly scoped; a [repo-scoped fine-grained PAT](git-credentials.md) remains the recommendation, because injection protects the token's *confidentiality*, not what it's authorized to do.
+**Or store a reference instead of the value.** With `--ref` (a 1Password `op://` reference or an AWS Secrets Manager ARN) or `--command` (any host command that prints the secret), `sbx` keeps only the *source* and resolves it on the host when the proxy needs it, caching the value for 55 minutes by default (`--refresh` changes that; `--refresh on-demand` resolves on every use). Rotating the token in 1Password then needs no `sbx` step. The `op`/`aws` CLI must be installed and signed in on the host.
+
+```bash
+sbx secret set github --ref 'op://Private/GitHub/token'
+sbx secret set github --command '/usr/bin/security find-generic-password -s my-gh-token -w'
+```
+
+Docker's cautions for `--command`: the command text is stored and replayed, so never embed a secret in it; it runs on the host, unconfined, from a temporary directory, so use an absolute path, and keep the helper (and anything it loads) **outside any workspace a sandbox can write** — otherwise the agent could rewrite the command that fetches your token.
+
+The same patterns work for the other services (`sbx secret set anthropic`, `openai`, …). If you must go fastest, `gh auth token | sbx secret set github` also avoids history — but the gh CLI's OAuth token is broadly scoped; a [repo-scoped fine-grained PAT](git-credentials.md) remains the recommendation, because injection protects the token's *confidentiality*, not what it's authorized to do.
 
 We verified the stdin-pipe form against Docker's documentation, but as with everything here: run `sbx secret set --help` and confirm the behavior on your machine before trusting it. However you set it, the payoff is the same — the proxy injects the auth header on matching outbound requests, and inside the VM the agent sees only a sentinel value, not the token.
 
 ## Environment variables: fine for config, never for secrets
 
-There is deliberately **no `-e`/`--env` flag** on `sbx run` or `sbx create` (examples on the web showing one belong to the deprecated Docker-Desktop `docker sandbox` CLI). Host environment variables are **not forwarded into the sandbox wholesale** — which is a feature: it's the same reason the [README warns](../README.md#three-tiers) that tokens exported in your `~/.zshrc` defeat every other sandbox tier. Two sanctioned paths exist:
+Host environment variables are **not forwarded into the sandbox wholesale** — which is a feature: it's the same reason the [README warns](../README.md#three-tiers) that tokens exported in your `~/.zshrc` defeat every other sandbox tier. A variable reaches the sandbox only if you pass it explicitly:
 
+- **`-e`/`--env` and `--env-file`** on `sbx run` / `sbx create` (`sbx` 0.39.0+): `-e LOG_LEVEL=debug`, or a bare `-e NAME` to copy that variable's value from your host shell. When the command creates the sandbox, the variables are stored with it. Everything passed this way is **plainly readable inside the VM** — so `-e GH_TOKEN` would hand the agent your real token and undo credential injection. Config only.
 - **Non-secret configuration** — a [kit](https://docs.docker.com/ai/sandboxes/customize/kits/) can set env vars declaratively (`environment.variables` in its `spec.yaml`): useful for tool paths, feature flags, workspace conventions. Docker's docs carry an explicit warning we'll repeat: **don't put secret values in kit env vars — they are plainly visible to the agent inside the VM**, which throws away the credential-injection benefit that makes this tier worth using.
-- **Credentials** — the proxy will fall back to a fixed, per-service set of env vars from your *host* shell (e.g. `ANTHROPIC_API_KEY`, `GH_TOKEN`) as a credential *source* when no stored secret exists, positioned by Docker for one-off testing and CI. Even then the value is proxy-injected — the sandbox still sees only a placeholder. But a stored secret takes precedence and keeps the token out of your shell environment entirely, so prefer `sbx secret set` (for services the proxy doesn't know, there's `sbx secret set-custom`, which maps a domain + env-var name and likewise exposes only a placeholder inside the VM).
+- **Credentials** never go through the options above. Use `sbx secret set` (for services the proxy doesn't know, `sbx secret set-custom` maps a domain + env-var name and likewise exposes only a placeholder inside the VM). If your keys are already exported in your shell, `sbx secret import` copies the known ones (`ANTHROPIC_API_KEY`, `GH_TOKEN`, …) into the keychain after confirming each — then delete the `export` lines from your dotfiles.
 
-Rule of thumb: if the value would hurt you in a log line, it goes through `sbx secret set`, never through an env var or a kit.
+Rule of thumb: if the value would hurt you in a log line, it goes through `sbx secret set`, never through `-e`, an env file, or a kit.
 
 ## Network policy: default-deny + our allowlist
 
@@ -217,13 +231,13 @@ Housekeeping notes:
 
 One pass-through rule covers all three: **everything after `--` goes to the agent's own CLI.** A leading *flag* appends to the default flags `sbx` uses; a bare-word first argument *replaces* them entirely.
 
-- **Claude Code** — if you set `sbx secret set -g anthropic`, the API key is injected and no login is needed. **Without an API key — i.e. you use a Claude subscription — run `/login` inside Claude Code on first use** to authenticate via OAuth; the agent will sit unauthenticated until you do. Pick a model at launch with a pass-through flag, or switch mid-session with `/model` (model IDs change as new models ship; `/model` lists the current ones):
+- **Claude Code** — if you set `sbx secret set anthropic`, the API key is injected and no login is needed. **Without an API key — i.e. you use a Claude subscription — run `/login` inside Claude Code on first use** to authenticate via OAuth; the agent will sit unauthenticated until you do. Pick a model at launch with a pass-through flag, or switch mid-session with `/model` (model IDs change as new models ship; `/model` lists the current ones):
 
   ```bash
   sbx run --clone claude -- --model claude-fable-5-1
   ```
 
-- **Codex** — auth via `sbx secret set -g openai` (API key) or the `--oauth` variant of `secret set` to sign in with a ChatGPT account. Model selection is the same pass-through:
+- **Codex** — auth via `sbx secret set openai` (API key) or the `--oauth` variant of `secret set` to sign in with a ChatGPT account. Model selection is the same pass-through:
 
   ```bash
   sbx run --clone codex -- --model <model>
