@@ -100,10 +100,6 @@ GH_TOKEN=$(gh auth token) \
 
 If you're on the [Docker Sandboxes tier](docker-sandbox.md), this is the best of the lot: the credential is stored in the host OS keychain (`sbx secret set -g github` — [set it from Keychain or 1Password](docker-sandbox.md#secrets-from-the-keychain-or-1password-nothing-in-your-history-or-logs) so it never touches shell history) and the **host proxy injects the auth header into matching outbound requests — the raw token never enters the microVM.** A hijacked agent inside the sandbox has no token to read or exfiltrate. Still use a repo-scoped fine-grained PAT: injection protects the secret's *confidentiality*, but an injected credential can still authenticate a push to any repo it's authorized for, so scoping is what bounds the blast radius.
 
-#### Tier 3 — devcontainer: container-local credentials, authenticate once
-
-Store the token in a *container-local* credential store. The [devcontainer.json](../configs/devcontainer/devcontainer.json) already mounts named volumes for the tools' config, so the developer logs in once (`gh auth login` inside the container) and it persists across rebuilds — never touching the host filesystem or keychain. A credential helper inside the container is acceptable here: the container boundary, the default-deny egress firewall, and repo-scoping together mean a leaked token can't even reach a non-allowlisted host to be exfiltrated.
-
 #### Prohibited in every tier
 
 - The **osxkeychain git credential helper inside a sandbox** — it hands the token to any `git` invocation, including one aimed at an attacker remote.
@@ -114,20 +110,18 @@ Once scoped PATs are the norm, the platform team can drop the `git push` approva
 
 ### Enterprise GitHub
 
-The GitHub hosts above assume **public `github.com`**. If your org uses an enterprise GitHub, what you allowlist depends on which kind — and for the devcontainer tier there's an extra step. Add the entries to the same places any GitHub host goes (`allowedDomains`, `allowed-domains.txt`, `sbx policy`); the no-cloud-storage rule still applies.
+The GitHub hosts above assume **public `github.com`**. If your org uses an enterprise GitHub, what you allowlist depends on which kind. Add the entries to the same places any GitHub host goes (`allowedDomains`, `allowed-domains.txt`, `sbx policy`); the no-cloud-storage rule still applies.
 
 | Your setup | What to allowlist | Notes |
 |------------|-------------------|-------|
 | **Enterprise Cloud on `github.com`** (typical GHEC) | Nothing new — the public hosts above are correct | Auth difference only: the fine-grained PAT must be **SSO/SAML-authorized for the enterprise org** ("Configure SSO" on the token). EMU usernames take the `_shortcode` form |
 | **Enterprise Server, self-hosted** (your org's GitHub hostname, e.g. `github.agency.gov`) | That hostname; if **subdomain isolation** is enabled, also `render.`, `codeload.`, `uploads.`, `raw.`, `assets.`, `media.<host>` | REST API is `https://<host>/api/v3` — a path on the same host, so the hostname entry covers it. Ask your GHES admin for the exact hostname set. Copilot (via GitHub Connect) still uses `*.githubcopilot.com` |
 
-**Built-in proxy tiers (Claude Code, `srt`) and Docker Sandboxes** filter by hostname, so adding the hostnames above is the whole job.
-
-**Devcontainer tier needs one more change.** `init-firewall.sh` fetches GitHub's published IP ranges from `api.github.com/meta`, which is correct **only for public github.com**. For a self-hosted server, set these env vars (no script edit needed): `SKIP_GITHUB_META=true`, `EXTRA_CIDRS="<your-GHES-server-CIDR>"`, and `VERIFY_REACHABLE_URL="https://<your-host>"` so the self-test checks the right host. See [devcontainer.md](devcontainer.md#how-the-firewall-works-and-its-honest-limits).
+Every tier here (the built-in proxies, `srt`, and Docker Sandboxes) filters by hostname, so adding the hostnames above is the whole job.
 
 ## Per-stack: package registries
 
-The **managed (strict) default already includes the common pull registries**, so `pip`, `npm`, `yarn`, `cargo`, `dotnet restore`, `bundle`, Maven, and Gradle work out of the box. They live in the [manifest](../configs/allowed-domains.manifest.json) under the `claude-managed` and `devcontainer` tiers. To add a stack under the **strict** posture, edit the **managed** file (a project `.claude/settings.json` is *ignored* under strict — see [enforcement.md](enforcement.md#the-strict-vs-standard-domain-decision)); under standard/devcontainer you can add at project scope.
+The **managed (strict) default already includes the common pull registries**, so `pip`, `npm`, `yarn`, `cargo`, `dotnet restore`, `bundle`, Maven, and Gradle work out of the box. They live in the [manifest](../configs/allowed-domains.manifest.json) under the `claude-managed` and `docker-sandbox` tiers. To add a stack under the **strict** posture, edit the **managed** file (a project `.claude/settings.json` is *ignored* under strict — see [enforcement.md](enforcement.md#the-strict-vs-standard-domain-decision)); under standard you can add at project scope (and on Docker Sandboxes, with `sbx policy allow`).
 
 | Stack | Domains | In default |
 |-------|---------|:---------:|
@@ -150,17 +144,9 @@ The **managed (strict) default already includes the common pull registries**, so
 
 If the organization runs an internal artifact proxy (Artifactory/Nexus), **prefer it as the single registry endpoint** and drop the public registries: one domain, organization-curated packages, and no public-registry publish channel — and it sidesteps the GitHub Packages / Go cloud-storage problem entirely.
 
-## Devcontainer-only: image build and OS packages
+## Docker Sandboxes only: OS packages
 
-Needed during `docker build` / container start, not by the agent at runtime:
-
-| Domain | Purpose |
-|--------|---------|
-| `mcr.microsoft.com`, `*.data.mcr.microsoft.com` | Devcontainer base images |
-| `deb.nodesource.com` | Node.js apt repo (Dockerfile) |
-| `deb.debian.org`, `archive.ubuntu.com`, `security.ubuntu.com`, `ports.ubuntu.com` | OS packages |
-| `ghcr.io`, `pkg-containers.githubusercontent.com` | GitHub container registry (if used) |
-| `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com` | Docker Hub (if used) |
+The `docker-sandbox` tier also allows the apt mirrors (`deb.debian.org`, `archive.ubuntu.com`, `security.ubuntu.com`, `ports.ubuntu.com`), so an agent can install OS packages inside the Linux VM. The host-side tiers don't need them.
 
 ## Third-party developer services
 
@@ -184,7 +170,7 @@ This is also a deliberate isolation stance: **agent sandboxes get no path to clo
 
 The domains still live in several files (each tool reads its own format), but there is now one **authoritative source** plus a CI check that the rest match it — no more "remember to edit the other files":
 
-- **[`configs/allowed-domains.manifest.json`](../configs/allowed-domains.manifest.json)** is the source of truth. Each domain records its `purpose` and which **tiers** include it (`claude-user`, `claude-managed`, `devcontainer`), plus a `rejected` list of domains we deliberately don't allow and why.
+- **[`configs/allowed-domains.manifest.json`](../configs/allowed-domains.manifest.json)** is the source of truth. Each domain records its `purpose` and which **tiers** include it (`claude-user`, `claude-managed`, `docker-sandbox`), plus a `rejected` list of domains we deliberately don't allow and why.
 - **`scripts/check-config-consistency.py`** (run in CI on every push/PR) fails if any tier's file drifts from the manifest — or if a forbidden domain appears. Editing the manifest without updating the files, or vice versa, is caught automatically.
 
 Tiers the check enforces (and the files they map to):
@@ -193,7 +179,7 @@ Tiers the check enforces (and the files they map to):
 |------|---------|
 | `claude-user` | `configs/claude-code/settings.user.json` |
 | `claude-managed` | `configs/claude-code/managed-settings.json` + `managed-settings.scoped-pat.json` |
-| `devcontainer` | `configs/devcontainer/allowed-domains.txt` (the devcontainer firewall and Docker Sandboxes' `apply-policy.sh` both read it) |
+| `docker-sandbox` | `configs/docker-sandbox/allowed-domains.txt` (read by Docker Sandboxes' `apply-policy.sh`) |
 
 **To change an allowlist:** edit the manifest, update the matching tier file(s), and run the check — it prints exactly what's missing/extra. The Codex permission-profile block (`configs/codex/config.toml`, commented) and the project example `configs/claude-code/settings.json` are illustrative and **not** machine-checked; keep them roughly in step by hand. The check enforces *consistency*, not *correctness* — a human reviewer (ideally a [CODEOWNER](../.github/CODEOWNERS)) still decides whether a domain belongs.
 

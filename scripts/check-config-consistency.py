@@ -113,7 +113,7 @@ def main():
         ("claude-user", net_domains(os.path.join(cc, "settings.user.json"))),
         ("claude-managed", net_domains(os.path.join(cc, "managed-settings.json"))),
         ("claude-managed", net_domains(os.path.join(cc, "managed-settings.scoped-pat.json"))),
-        ("devcontainer", txt_domains(os.path.join(ROOT, "configs", "devcontainer", "allowed-domains.txt"))),
+        ("docker-sandbox", txt_domains(os.path.join(ROOT, "configs", "docker-sandbox", "allowed-domains.txt"))),
     ]
     for tier, actual in tier_files:
         exp = expected(tier)

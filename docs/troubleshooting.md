@@ -4,13 +4,13 @@ Blocked-by-design is the system working; this page is about telling that apart f
 
 ## "A command failed with a network error"
 
-1. **Identify the domain.** The error usually names it (`Could not resolve host`, `403 from proxy`, `CONNECT tunnel failed, response 403`, `connection refused`). In Claude Code, the prompt names the domain when a new one is requested; in the devcontainer, the firewall REJECTs (not DROPs) so tools fail fast with `Network is unreachable`/admin-prohibited rather than hanging.
+1. **Identify the domain.** The error usually names it (`Could not resolve host`, `403 from proxy`, `CONNECT tunnel failed, response 403`, `connection refused`). In Claude Code, the prompt names the domain when a new one is requested; in Docker Sandboxes, a blocked request returns a 403 whose body names the host and the rule (`sbx policy log` lists recent blocks).
 2. **Is it on the never-list?** Check [network-allowlists.md](network-allowlists.md#never-allowlisted--and-why). Cloud storage domains stay blocked — find another way (usually: that fetch shouldn't happen inside an agent sandbox).
 3. **Legitimate need? Add it via the manifest.** Edit [`configs/allowed-domains.manifest.json`](../configs/allowed-domains.manifest.json) (add the domain with the right `tiers`), update the matching tier file(s), and run `python3 scripts/check-config-consistency.py` — it prints exactly which files are out of step. *Where* it lands depends on posture (the [shipped default is strict](enforcement.md#the-strict-vs-standard-domain-decision)):
    - **Strict (`allowManagedDomainsOnly: true`):** project/user `allowedDomains` are **ignored** — the domain must be in the **managed** tier. *Solo machine:* edit `/Library/Application Support/ClaudeCode/managed-settings.json` with `sudo`, then restart (this is why a `.claude/settings.json` edit appears to "do nothing" under strict). *Fleet:* PR it into `configs/claude-code/managed-settings.json` and push via MDM.
-   - **Standard / devcontainer:** add at project scope (`.claude/settings.json`) or `.devcontainer/allowed-domains.txt`.
+   - **Standard:** add at project scope (`.claude/settings.json`).
+   - **Docker Sandboxes:** `sbx policy allow network <domain>` for yourself, or add it to the `docker-sandbox` tier ([`configs/docker-sandbox/allowed-domains.txt`](../configs/docker-sandbox/allowed-domains.txt)) for the team.
    Justify it (what breaks without it, what it serves, why it isn't multi-tenant storage), and never add a [never-listed](network-allowlists.md#never-allowlisted--and-why) domain. Common registries (PyPI, npm, Maven, Gradle, Rust, NuGet, Yarn, Ruby) are already in the default; GitHub Packages and the public Go proxy are [unsupported](network-allowlists.md#per-stack-package-registries) (they require banned cloud storage).
-4. **Devcontainer special case — it worked this morning, fails now:** CDN IP rotation. Rerun `sudo /usr/local/bin/init-firewall.sh` to re-resolve. (Drift fails closed, never open.)
 
 ## "A command failed with Operation not permitted"
 
@@ -52,7 +52,7 @@ The sandbox makes the directory you **launched the agent in** writable. In a mon
 
 | Tool | Symptom | Sanctioned workaround |
 |------|---------|----------------------|
-| `docker` | Fails under any Seatbelt sandbox | Don't `excludedCommands` it (that runs it **unsandboxed**, with the full Docker-socket blast radius). Let it hit the ask-prompt for one-offs; move container-heavy work to the [devcontainer](devcontainer.md) tier |
+| `docker` | Fails under any Seatbelt sandbox | Don't `excludedCommands` it (that runs it **unsandboxed**, with the full Docker-socket blast radius). Let it hit the ask-prompt for one-offs; move container-heavy work into [Docker Sandboxes](docker-sandbox.md), where each sandbox has its own Docker daemon |
 | `jest` (watchman) | Hangs | `jest --no-watchman` |
 | Go-based CLIs (`gh`, `terraform`, `gcloud`) | TLS verification failure on macOS (`x509: OSStatus -26276`). Go delegates cert verification to the macOS Security framework, which reaches for trust settings in the **user keychain the sandbox denies** (`~/Library/Keychains`); the failure is in trust *evaluation*, not the certificate. (Confirmed not a MITM: the proxy is a CONNECT pass-through and the genuine host cert reaches the client — `curl` validates it fine.) | For GitHub API work (e.g. opening a PR), use `curl` against the REST API — `curl` verifies via SecureTransport against the world-readable system root keychain, so it succeeds where `gh` fails ([recipe below](#opening-a-pr-or-other-github-api-work-when-gh-fails-tls)). Separately, only for a *genuine* corporate CA/MITM proxy (`httpProxyPort` + custom CA): `enableWeakerNetworkIsolation: true` (Claude Code) — see the note below on exactly what it weakens. Prefer either over `excludedCommands` |
 | Windows binaries under WSL2 | Blocked Unix-socket handoff | Out of scope for our macOS fleet; see Claude Code docs if relevant |
@@ -116,14 +116,14 @@ $RS -- /usr/bin/security list-keychains              # must fail
 $RS -- /bin/sh -c 'git init -q r && echo ok'         # must succeed
 ```
 
-The devcontainer firewall self-tests on every start (reach `api.github.com`, fail `example.com`) and aborts loudly if the test fails.
+For Docker Sandboxes, run the checks in [Verify the isolation is working](docker-sandbox.md#verify-the-isolation-is-working) from inside the sandbox.
 
 ## "The sandbox broke a tool I can't work without"
 
 Don't disable the sandbox. In order of preference:
 
 1. Narrow config fix (a write path, a domain, a flag like `--no-watchman`) — this page or the tool guide probably has it.
-2. Move the workflow into the [devcontainer](devcontainer.md), where the boundary is the container and in-container restrictions are looser.
+2. Move the workflow into [Docker Sandboxes](docker-sandbox.md), where the boundary is the microVM and in-VM restrictions are looser.
 3. File an exception per [policy-matrix.md](policy-matrix.md#exception-process) — visible, time-boxed, signed off.
 
 If developers are hitting the same block repeatedly, that's a defect in our defaults: PR the fix into `configs/` so the next person doesn't hit it.

@@ -26,8 +26,9 @@ which makes path-based denies look broken when they aren't).
 - `setup.sh` and `.merge-json.py` live at the **repo root**; `scripts/`,
   `configs/`, `docs/`, `.github/` are directly beneath it. The shell scripts are
   **self-locating** (`SCRIPT_DIR` from `$BASH_SOURCE`) and assume this layout —
-  e.g. `configs/docker-sandbox/apply-policy.sh` reads
-  `../devcontainer/allowed-domains.txt`.
+  e.g. `setup.sh` reads `configs/` and `.merge-json.py` next to it, and
+  `configs/docker-sandbox/apply-policy.sh` reads the `allowed-domains.txt`
+  beside it.
 - `.merge-json.py` and `.github/` are dot-prefixed — easy to miss in a plain
   `ls`. Don't drop them when moving files.
 

@@ -94,4 +94,4 @@ GH_TOKEN=$(gh auth token) \
 | Wrapping miscellaneous CLIs/scripts an agent generates | `srt` |
 | Understanding/auditing what Seatbelt actually enforces | `agent.sb` (read it — it's ~70 lines) |
 | Locked-down machine, no npm allowed | `run-sandboxed.sh` |
-| Everything, uniformly, including IDEs | [devcontainer](devcontainer.md) |
+| Everything, uniformly, with a stronger boundary (microVM) | [Docker Sandboxes](docker-sandbox.md) |

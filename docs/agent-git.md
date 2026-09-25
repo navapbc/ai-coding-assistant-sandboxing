@@ -19,8 +19,7 @@ For an AI agent to do version control — **commit, branch** — without frictio
 | **Copilot VS Code** (agent mode) | ✅ | writable | `chat.agent.sandbox.fileSystem.mac` → `allowWrite: ["<root>/.git"]` | default-deny egress (push fails unless the host is allowlisted); no per-command prompt |
 | **Docker Sandbox** (`sbx`, direct mode) | ✅ | writable (virtiofs RW) | point the **primary workspace at the repo root** — a subdir-only mount means "the agent can't use git at all" | host proxy injects a scoped credential (token never enters the VM); egress deny-by-default |
 | **Docker Sandbox** (`--clone`) | ✅ (in-VM clone) | host `.git` read-only | run from the **main checkout**; commits land in the in-VM clone, pulled back via the `sandbox-<name>` git remote | same (credential injection) |
-| **Devcontainer** | ✅ | writable (bind mount) | open the repo **root** as the devcontainer workspace | container-local creds + egress firewall |
-| **JetBrains + Copilot** | ❌ no host sandbox | — | use the [devcontainer](devcontainer.md) | → devcontainer |
+| **JetBrains + Copilot** | ❌ no host sandbox | — | use Copilot CLI instead (`/sandbox enable`, or in Docker Sandboxes) | no sandboxed in-IDE option |
 
 ## Claude Code in a monorepo subdirectory
 
@@ -43,7 +42,7 @@ Push is controlled in every tier; the mechanism differs, so match it to your tie
 
 - **Prompt / approval:** Claude Code (`git push` ask-rule), Codex (`--ask-for-approval on-request`), Copilot CLI (default per-call prompt).
 - **Hard deny:** Copilot CLI `--deny-tool 'shell(git push)'`.
-- **Network + credential boundary:** Copilot VS Code (egress default-deny), Docker Sandbox and the devcontainer (egress allowlist + a scoped/injected credential) — a push can only reach an allowlisted host, and only with a repo-scoped token.
+- **Network + credential boundary:** Copilot VS Code (egress default-deny), Docker Sandbox (egress allowlist + an injected, scoped credential) — a push can only reach an allowlisted host, and only with a repo-scoped token.
 
 Whichever it is, the **repo-scoped fine-grained PAT** is the backstop that bounds a push's blast radius — see [git-credentials](network-allowlists.md#git-credentials-https--scoped-pats).
 
@@ -53,4 +52,4 @@ Allowing the whole `.git` re-opens one vector: a hijacked agent could plant a `.
 
 ## Per-repo strict vs. machine-wide
 
-Want hard default-deny on *one* repo but normal git/egress elsewhere? **Managed settings are machine-wide** ([enforcement.md](enforcement.md#managed-settings-apply-machine-wide)) — they can't be scoped per-repo. For a single repo, use the [devcontainer](devcontainer.md) (per-project, containerized, default-deny) rather than a machine-wide managed deploy.
+Want hard default-deny on *one* repo but normal git/egress elsewhere? **Managed settings are machine-wide** ([enforcement.md](enforcement.md#managed-settings-apply-machine-wide)) — they can't be scoped per-repo. For a single repo, run it in [Docker Sandboxes](docker-sandbox.md) (per-session microVM, default-deny) rather than a machine-wide managed deploy.

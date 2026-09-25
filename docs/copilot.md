@@ -8,7 +8,7 @@ Copilot's local isolation story is the youngest of the three tools, and it varie
 | Copilot CLI without sandbox | ❌ Permission prompts only — shell commands run with your full account | ❌ No sandbox — don't use for agentic work |
 | VS Code agent mode + terminal sandbox setting | ✅ Seatbelt (preview) | ✅ Sandbox available with the setting on |
 | VS Code agent mode, setting off | ❌ Approval prompts + workspace trust only | ❌ No sandbox |
-| **JetBrains (IntelliJ) agent mode** | ❌ **None** — git-worktree isolation is change isolation, not security isolation | ❌ **No sandbox on the host. Use the [devcontainer](devcontainer.md).** |
+| **JetBrains (IntelliJ) agent mode** | ❌ **None** — git-worktree isolation is change isolation, not security isolation | ❌ **No sandbox, and no sandboxed alternative in this repo.** Use Copilot CLI instead, or disable IDE agent mode. |
 | Copilot coding agent (cloud, assign-an-issue) | ✅ GitHub Actions runners with default-on egress firewall | ✅ Sandboxed (cloud-side; not a local concern) |
 | Code completions (non-agentic, all IDEs) | n/a — suggests text, executes nothing | ✅ Nothing to sandbox |
 
@@ -26,11 +26,11 @@ Copilot's local isolation story is the youngest of the three tools, and it varie
    copilot --deny-tool 'shell(git push)' --deny-tool 'shell(npm publish)'
    ```
 
-   Never use `--allow-all-tools` / `--yolo` outside a devcontainer.
+   Never use `--allow-all-tools` / `--yolo` outside a [Docker Sandbox](docker-sandbox.md).
 
 3. Trusted directories persist in `~/.copilot/config.json` (key: `trustedFolders` — example in [`configs/copilot/config.json`](../configs/copilot/config.json)). Only add project workspaces; never your home directory.
 
-Because the sandbox is **opt-in and per-session** during the preview, treat it as a developer habit reinforced by policy, not a guarantee. Enterprise enforcement lands via Microsoft Intune/MDM (see [enforcement.md](enforcement.md)); until your MDM supports it, the devcontainer is the enforceable option for Copilot.
+Because the sandbox is **opt-in and per-session** during the preview, treat it as a developer habit reinforced by policy, not a guarantee. Enterprise enforcement lands via Microsoft Intune/MDM (see [enforcement.md](enforcement.md)); until your MDM supports it, running Copilot CLI in [Docker Sandboxes](docker-sandbox.md) under an org governance policy is the enforceable option.
 
 ## VS Code agent mode
 
@@ -43,14 +43,15 @@ Apply [`configs/copilot/vscode-settings.json`](../configs/copilot/vscode-setting
 **Read restrictions — what you can and can't configure.** Copilot exposes **no per-path read-deny list** (unlike Claude Code's `denyRead` / `permissions.deny` or Codex's permission profiles). What you get:
 
 - **Home-dir secrets are covered automatically.** The terminal sandbox denies file reads under `$HOME`, so `~/.ssh`, `~/.aws`, **`~/.config/sops` (SOPS age keys), and `~/.bash_history`/`~/.zsh_history`** on disk are blocked from agent-run commands — without any setting (as far as the preview sandbox holds; verify it for yourself).
-- **Workspace file-types are not configurable.** There is no knob to deny reading `*.key` or vim swap files (`*.sw[a-p]`) *inside* the workspace, which the sandbox treats as readable. `chat.tools.edits.autoApprove` only gates **edits**, not reads. For OS-level read denial of those types, run Copilot under the [universal `srt` wrapper](universal-sandbox-srt.md) — its Seatbelt profile denies them by regex. This is another reason the wrapper/devcontainer is the enforceable answer for Copilot.
+- **Workspace file-types are not configurable.** There is no knob to deny reading `*.key` or vim swap files (`*.sw[a-p]`) *inside* the workspace, which the sandbox treats as readable. `chat.tools.edits.autoApprove` only gates **edits**, not reads. For OS-level read denial of those types, run Copilot under the [universal `srt` wrapper](universal-sandbox-srt.md) — its Seatbelt profile denies them by regex. This is another reason the wrapper (or [Docker Sandboxes](docker-sandbox.md), where the host filesystem isn't mounted at all) is the stronger answer for Copilot.
 
 ## JetBrains: the gap, plainly
 
 Copilot agent mode in IntelliJ executes on your host with your privileges and offers **no OS-level sandbox**. Its "isolation modes" (git worktree vs. workspace) isolate *changes*, not *capabilities*. Until GitHub ships an equivalent of the VS Code terminal sandbox for JetBrains:
 
 - **Agentic Copilot in IntelliJ has no sandbox on the host — don't run it there.**
-- The sanctioned paths: open the project in the [devcontainer](devcontainer.md) (JetBrains supports devcontainers; the firewall contains everything inside), or use Copilot **CLI** with `/sandbox enable` in a terminal next to the IDE.
+- **There is no sandboxed way to run IDE agent mode in JetBrains** in this repo. The sanctioned path is Copilot **CLI** in a terminal next to the IDE — with `/sandbox enable`, or inside [Docker Sandboxes](docker-sandbox.md) for a stronger boundary.
+- Where developers can't be relied on to skip it, disable IDE agent mode via org Copilot policy ([enforcement](enforcement.md)).
 - Completions (non-agentic) in IntelliJ remain fine — they execute nothing.
 
 ## Network endpoints
@@ -65,7 +66,7 @@ Copilot's local sandbox is the **weakest of the three on this axis**: [Codex](co
 - **Copilot CLI:** has an opt-in `--secret-env-vars` flag. By default it only **redacts** `GITHUB_TOKEN`/`COPILOT_GITHUB_TOKEN` *values in its output/logs* — which does not stop a command from reading them. Whether naming additional vars also *strips* them from the command environment (vs. log-redaction only) is documented **inconsistently** by GitHub's own sources, so don't rely on it without testing your installed version.
 - **Cloud-provider creds (AWS/GCP/Azure):** not protected by default on either surface.
 
-Net: treat the Copilot local sandbox as **not** protecting secrets held in environment variables. This reinforces the devcontainer recommendation above — and, as everywhere, the durable fix is to not export long-lived secrets into your shell.
+Net: treat the Copilot local sandbox as **not** protecting secrets held in environment variables. This reinforces the [Docker Sandboxes](docker-sandbox.md) recommendation — its proxy injects credentials so the real token never enters the VM — and, as everywhere, the durable fix is to not export long-lived secrets into your shell.
 
 ## References (source of truth)
 
