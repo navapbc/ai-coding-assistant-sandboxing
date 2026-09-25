@@ -2,7 +2,7 @@
 
 **If you can run Docker, start here.** Docker Sandboxes is the sandboxing option we recommend reaching for first — ahead of the built-in sandboxes shipped with Claude Code, Codex, and the other AI coding assistants. It runs each agent in a **microVM** (its own kernel, filesystem, and network — a harder boundary than the built-ins' host-level containment or container namespaces), and its built-in host proxy does **TLS-terminating, hostname-level egress filtering** with a default-deny preset. It's tool-agnostic — the same sandbox wraps Claude Code, Codex, and Copilot — so you get one strong boundary instead of a different, weaker one per tool. As with every tier in this repo: it raises the cost of an attack rather than removing it, and it comes with [caveats](#caveats-be-honest-in-the-compliance-record) you should read before relying on it.
 
-Why prefer it over the native built-ins? The built-in sandboxes are convenient because they ship with the tool, but they contain the agent within the *host* OS (a Seatbelt/namespace boundary sharing your kernel) and generally can't keep credentials out of the agent's reach. Docker Sandboxes gives you a genuinely stronger isolation boundary (microVM), true layer-7 egress control, and **keeps the credential out of the VM entirely** — for a few minutes of one-time setup. Reach for a tool's built-in sandbox only when Docker isn't available; see the [Tier 1 built-ins](enforcement.md) as the fallback path, and the [`srt` wrapper](universal-sandbox-srt.md) when you want one tool-agnostic boundary without Docker.
+Why prefer it over the native built-ins? The built-in sandboxes are convenient because they ship with the tool, but they contain the agent within the *host* OS (a Seatbelt/namespace boundary sharing your kernel) and generally can't keep credentials out of the agent's reach. Docker Sandboxes gives you a genuinely stronger isolation boundary (microVM), true layer-7 egress control, and **keeps the credential out of the VM entirely** — for a few minutes of one-time setup. Reach for a tool's built-in sandbox only when Docker isn't available; see the [Tier 1 built-ins](../README.md#three-tiers) as the fallback path, and the [`srt` wrapper](universal-sandbox-srt.md) when you want one tool-agnostic boundary without Docker.
 
 ## Credentials never enter the VM
 
@@ -86,19 +86,49 @@ Rule of thumb: if the value would hurt you in a log line, it goes through `sbx s
 
 ## Network policy: default-deny + our allowlist
 
-The proxy listens on the host and is the only way out of the sandbox (it also blocks UDP/ICMP entirely). It has three presets:
+The proxy listens on the host and is the only way out of the sandbox. ICMP is blocked, and so is UDP unless you turn on Docker's experimental outbound-UDP option. It has three presets:
 
 - **open** (`allow-all`) — all outbound allowed (don't use)
-- **balanced** — default-deny, plus Docker's baseline allowlist: "AI provider APIs, package managers, code hosts, container registries, and common cloud services". As of v0.35.0 that explicitly includes Azure Blob Storage (`*.blob.core.windows.net`). **We don't use it** — that baseline allows domains on our [never-allowlist](network-allowlists.md#never-allowlisted--and-why), and Docker doesn't publish the full list (only `sbx policy ls` shows it), so you can't review it in advance.
+- **balanced** — default-deny, plus Docker's baseline allowlist: "AI provider APIs, package managers, code hosts, container registries, and common cloud services". As of v0.35.0 that explicitly includes Azure Blob Storage (`*.blob.core.windows.net`). **We don't use it** — that baseline allows domains on our [never-allowlist](network-allowlists.md#never-allowlisted--and-why), and Docker doesn't publish the full list (only `sbx policy ls` shows it), so you can't review it in advance. If you're weighing it anyway, see [the trade-offs](#if-youre-evaluating-the-balanced-preset).
 - **locked down** (`deny-all`) — no baseline allow rules (**our base**)
 
-[`configs/docker-sandbox/apply-policy.sh`](../configs/docker-sandbox/apply-policy.sh) initializes the global policy to `deny-all` and then adds our allowlisted domains via the `sbx policy` CLI, reading [`allowed-domains.txt`](../configs/docker-sandbox/allowed-domains.txt) next to it (kept in sync with the tool-level lists — see the [sync note](network-allowlists.md#keeping-the-allowlists-in-sync)). `sbx policy init` is one-time: if you already chose a preset at `sbx login`, the script's `init` fails harmlessly for `deny-all`; if you chose `Balanced` earlier, switch with `apply-policy.sh --reset`. That runs `sbx policy reset`, which asks to confirm, **stops running sandboxes**, and then prompts you for a preset itself: **pick "3. Locked Down"**. The script ends by printing the policy table (`sbx policy ls`): on deny-all it lists only `local` and `kit` policies (plus `org` under org governance), and `local` holds exactly the allowlist's rules. Treat any other row as a sign a preset baseline may still be active. We've verified what the table looks like on Locked Down, but not yet how Balanced appears in it.
+[`configs/docker-sandbox/apply-policy.sh`](../configs/docker-sandbox/apply-policy.sh) initializes the global policy to `deny-all` and then adds our allowlisted domains via the `sbx policy` CLI, reading [`allowed-domains.txt`](../configs/docker-sandbox/allowed-domains.txt) next to it (kept in sync with the tool-level lists — see the [sync note](network-allowlists.md#keeping-the-allowlists-in-sync)). `sbx policy init` is one-time: if you already chose Locked Down at `sbx login`, the script notes that and skips it; if you chose `Balanced` earlier, switch with `apply-policy.sh --reset`. That runs `sbx policy reset`, which asks to confirm, **stops running sandboxes**, and then prompts you for a preset itself: **pick "3. Locked Down"**. The script ends by printing the policy table (`sbx policy ls`): on deny-all it lists only `local` and `kit` policies (plus `org` under org governance), and `local` holds exactly the allowlist's rules. Treat any other row as a sign a preset baseline may still be active. We've verified what the table looks like on Locked Down, but not yet how Balanced appears in it.
 
 **Kits can still add rules.** Even under `deny-all`, built-in agent kits (the `claude`, `codex`, … agents) and any kit you pass with `--kit` add their own **per-sandbox** allow rules — typically for their own API. Review them once per agent, and treat anything outside our allowlist as a finding: `sbx policy ls <sandbox> --source kit --type network --wide`. A global `sbx policy deny network <host>` overrides a kit's allow if you need to remove one.
 
-Rules accept exact hostnames, wildcard subdomains, an optional `:port`, and CIDR ranges; **deny always wins** over allow. The same never-allowlist rule applies — no cloud-provider storage domains ([why](network-allowlists.md#never-allowlisted--and-why)).
+Rules accept exact hostnames, wildcard subdomains (`*.example.com` matches one level, `**.example.com` any depth, and neither matches `example.com` itself), an optional `:port`, and CIDR ranges. **Deny takes precedence over allow** for the same host. The same never-allowlist rule applies — no cloud-provider storage domains ([why](network-allowlists.md#never-allowlisted--and-why)).
 
 > **Note on the policy store.** We drive policy through the documented `sbx policy` CLI rather than a config file: as of this writing the on-disk format of the *local* policy store isn't documented, so a hand-authored file would be guesswork. The CLI is the supported, stable interface.
+
+### If you're evaluating the Balanced preset
+
+This isn't a recommendation. Locked Down plus our allowlist is the default this repo supports. But Balanced is the option `sbx login` highlights, and it's a reasonable thing to weigh, so here are the trade-offs as we understand them.
+
+**What you gain:**
+
+- **Less friction.** Docker's baseline covers the everyday development traffic ("AI provider APIs, package managers, code hosts, container registries, and common cloud services", plus VS Code domains as of v0.35.0). Installs, image pulls, and editor tooling that would hit a 403 under Locked Down tend to just work.
+- **Someone else maintains it.** Docker updates the baseline as ecosystems move (for example, a later release added the NodeSource APT repository), so you're not waiting on a PR to this repo when a registry changes hosts.
+
+**What you give up:**
+
+- **It allows domains on our never-list.** The baseline explicitly includes Azure Blob Storage (`*.blob.core.windows.net`), and "common cloud services" is broad. Multi-tenant storage is a ready-made exfiltration channel: an attacker can receive data on their own bucket under the same domain ([why](network-allowlists.md#never-allowlisted--and-why)).
+- **You can't review it in advance, and it changes under you.** The full list isn't published, and it's tied to the `sbx` version. A routine `brew upgrade` can widen your egress with no change to your config and no PR anyone reviews.
+- **Your allowlist stops being the source of truth.** Under Locked Down, "what can the agent reach?" has a short answer: our allowlist plus the kit rules. Under Balanced, the answer is our allowlist plus the kit rules plus whatever this release of Docker's baseline contains.
+
+**If you evaluate it anyway,** treat it as a deliberate, recorded decision rather than a default:
+
+1. List the baseline on your installed version with `sbx policy ls --wide` and compare it against the [never-list](network-allowlists.md#never-allowlisted--and-why).
+2. Add explicit denies for the never-list. Docker documents that deny rules take precedence over allow rules for the same host. We haven't confirmed that a wildcard deny beats a more specific baseline allow, so step 3 is where you confirm it. Use `**.` wildcards, because `*.` matches only one subdomain level (S3 hosts look like `bucket.s3.us-east-1.amazonaws.com`) and neither form matches the bare domain:
+
+   ```bash
+   sbx policy deny network "**.amazonaws.com,**.googleapis.com,**.blob.core.windows.net,**.azurefd.net,**.cloudfront.net,**.r2.dev"
+   sbx policy deny network "pastebin.com,transfer.sh,file.io"
+   ```
+
+3. Confirm the denies hold: `sbx policy check network example.blob.core.windows.net` should report denied, and the [egress checks](#verify-the-isolation-is-working) should fail for those hosts.
+4. Repeat steps 1–3 after every `sbx` upgrade, since the baseline can change between releases.
+
+Two caveats. **Denying a whole cloud domain also blocks whatever legitimately runs there**; it may be why some of those domains are in the baseline to begin with (VS Code extension downloads and some registries' layer storage are plausible examples, which we haven't verified). And **this repo doesn't test Balanced**: we haven't confirmed the full baseline contents, how its rules appear in `sbx policy ls`, or that the deny list above is complete. On a fleet, make this call in the org governance policy rather than per laptop: under org governance only org allow rules grant access, though local denies still apply ([below](#fleet-enforcement-requires-the-org-governance-tier)).
 
 ## Adding your own allowed domains
 
@@ -107,7 +137,7 @@ Local rules are **additive**: they stack on top of the `deny-all` baseline and t
 ```bash
 sbx policy allow network api.example.com                           # all sandboxes
 sbx policy allow network --sandbox <sandbox-name> api.example.com  # just one sandbox
-sbx policy allow network "api.anthropic.com,*.npmjs.org"           # several at once
+sbx policy allow network "api.example.com,*.example.org"           # several at once
 ```
 
 Prefer the `--sandbox` form for one-off, project-specific needs — it keeps the global policy short and reviewable. Inspect and prune with:
@@ -118,7 +148,7 @@ sbx policy log         # recent connections: host, matching rule, allowed/blocke
 sbx policy rm network --resource api.example.com    # remove a rule (or: --id <uuid>)
 ```
 
-Niche, personal-use domains are exactly what this local path is for — they don't need to go into the repo's core allowlist. Two rules still stand, though: **never allow cloud-provider storage or paste domains** ([why](network-allowlists.md#never-allowlisted--and-why)) — deny rules win, but don't add allow rules for them either — and remember these rules are **user-local and developer-changeable**, so they're convenience, not enforcement ([governance below](#fleet-enforcement-requires-the-org-governance-tier)). One reset caveat: `sbx policy reset` deletes every local rule and the preset choice — re-run `apply-policy.sh` afterwards.
+Niche, personal-use domains are exactly what this local path is for — they don't need to go into the repo's core allowlist. Two rules still stand, though: **never allow cloud-provider storage or paste domains** ([why](network-allowlists.md#never-allowlisted--and-why)) — don't add allow rules for them, even though deny-all would otherwise block them — and remember these rules are **user-local and developer-changeable**, so they're convenience, not enforcement ([governance below](#fleet-enforcement-requires-the-org-governance-tier)). One reset caveat: `sbx policy reset` deletes every local rule and the preset choice — re-run `apply-policy.sh` afterwards.
 
 ## Clone mode vs. direct mount: the trade-offs
 
@@ -187,10 +217,10 @@ Housekeeping notes:
 
 One pass-through rule covers all three: **everything after `--` goes to the agent's own CLI.** A leading *flag* appends to the default flags `sbx` uses; a bare-word first argument *replaces* them entirely.
 
-- **Claude Code** — if you set `sbx secret set -g anthropic`, the API key is injected and no login is needed. **Without an API key — i.e. you use a Claude subscription — run `/login` inside Claude Code on first use** to authenticate via OAuth; the agent will sit unauthenticated until you do. Pick a model at launch with a pass-through flag, or switch mid-session with `/model`:
+- **Claude Code** — if you set `sbx secret set -g anthropic`, the API key is injected and no login is needed. **Without an API key — i.e. you use a Claude subscription — run `/login` inside Claude Code on first use** to authenticate via OAuth; the agent will sit unauthenticated until you do. Pick a model at launch with a pass-through flag, or switch mid-session with `/model` (model IDs change as new models ship; `/model` lists the current ones):
 
   ```bash
-  sbx run --clone claude -- --model claude-fable-5
+  sbx run --clone claude -- --model claude-fable-5-1
   ```
 
 - **Codex** — auth via `sbx secret set -g openai` (API key) or the `--oauth` variant of `secret set` to sign in with a ChatGPT account. Model selection is the same pass-through:
@@ -228,7 +258,7 @@ Be aware of the gap: **there is no official IDE-attach integration** for `sbx` s
 
 ## Fleet enforcement requires the org governance tier
 
-By default, `sbx policy` rules are **user-local and the developer can change them** — fine for the trusted subset, but not "enforced." To make the policy non-overridable, you need Docker's **paid org governance subscription**: an org policy set in the Docker **Admin Console → AI governance** becomes *the only policy in effect* (local rules are ignored, deny still wins, changes propagate in ~5 min). That's the analog of managed settings / `requirements.toml` for this tier. See [enforcement.md](enforcement.md) for where it sits relative to the other tiers.
+By default, `sbx policy` rules are **user-local and the developer can change them** — fine for the trusted subset, but not "enforced." To make the policy non-overridable, you need Docker's **paid org governance subscription**: once an org policy is set in the Docker **Admin Console → AI governance**, only org allow rules grant access: local allow rules go inactive, while local deny rules still apply on top (a developer can restrict further, never widen). Changes propagate in ~5 min. That's the analog of managed settings / `requirements.toml` for this tier. See [enforcement.md](enforcement.md) for where it sits relative to the other tiers.
 
 ## Caveats (be honest in the compliance record)
 

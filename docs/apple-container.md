@@ -39,9 +39,9 @@ a home-mounted VM. Boot is sub-second, and resources are released on shutdown.
   networking via `vmnet`) needs **macOS 26 (Tahoe)** on Apple silicon. It
   installs on macOS 15 but core features are gated to 26, and the project
   doesn't track issues on older releases.
-- **Linux workloads, like Docker Sandboxes.** The agent runs inside
-  Linux (Ubuntu/Debian/Alpine images), not native macOS — same operating model
-  as the Docker Sandboxes tier, not the native Seatbelt tiers.
+- **Linux workloads.** The agent runs inside Linux (Ubuntu/Debian/Alpine
+  images), not native macOS — the same operating model as Docker Sandboxes,
+  not the native Seatbelt tiers.
 - **Security isolation is still maturing.** Apple lists memory reclamation,
   security isolation, and image compatibility as areas with room to improve, and
   it is **not yet a built-in macOS system component**. Verify before you rely on

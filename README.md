@@ -7,7 +7,7 @@
 >
 > **Do not develop a false sense of security.** A sandbox that is enabled is not the same as a sandbox that is working as you assume, and "more secure than nothing" is not a property you can take for granted. **Verify every claim before you rely on it** — against the linked vendor docs *and* by testing the actual behavior on your own machine (see the [egress check](docs/troubleshooting.md#verify-your-egress-is-actually-default-deny) and [threat-model.md](docs/threat-model.md)). Vendor docs can be wrong or out of date, defaults change between versions, and a config that protected you yesterday may silently stop doing so after an update. Assume nothing is enforced until you have watched it block something.
 
-**Status:** experimental · last reviewed 2026-07-10
+**Status:** experimental · last reviewed 2026-09-25
 
 Guides and runnable configurations for reducing the blast radius of **Claude Code**, **OpenAI Codex**, and **GitHub Copilot** on developer Macs that handle sensitive data. The goal is to make it substantially harder for an agent compromised by prompt injection to read host secrets or exfiltrate data — a goal these tools work toward, not a guarantee they deliver (see the warning above) — while staying pleasant enough to use that nobody routes around it.
 

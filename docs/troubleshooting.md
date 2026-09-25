@@ -78,7 +78,7 @@ For multi-line/Markdown bodies, build the JSON with `python3 -c 'import json,sys
 
 ## Verifying your sandbox
 
-Run these *through the agent* (ask it to run them) — all five must behave as stated, on every tier:
+Run these *through the agent* (ask it to run them) — all five must behave as stated on every Seatbelt-based tier (Claude Code, Codex, Copilot, `srt`). Docker Sandboxes runs Linux, where `security` and your home directory don't exist, so it has [its own checks](docker-sandbox.md#verify-the-isolation-is-working):
 
 ```text
 cat ~/.ssh/id_ed25519.pub      → Operation not permitted / blocked
@@ -137,4 +137,4 @@ Sometimes there's a real deadline and options 1–3 are too slow. A sanctioned, 
 3. **Never bypass with live credentials present.** Don't pair a bypass with secrets in the environment; if the task needs a token, use a [repo-scoped PAT](network-allowlists.md#git-credentials-https--scoped-pats) and remove it after.
 4. **Time-box and file the fix.** Re-enable immediately after, and open a PR/issue so the underlying block is fixed in `configs/` — a break-glass that isn't followed by a fix is a standing hole.
 
-What's **not** break-glass: editing managed settings, adding `excludedCommands`, allowlisting a cloud-storage domain, or `--allow-all-tools`/`--yolo` outside a container. Those are policy changes, not emergencies — they go through review.
+What's **not** break-glass: editing managed settings, adding `excludedCommands`, allowlisting a cloud-storage domain, or `--allow-all-tools`/`--yolo` outside a Docker Sandbox. Those are policy changes, not emergencies — they go through review.
