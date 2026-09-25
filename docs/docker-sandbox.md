@@ -258,9 +258,37 @@ Sandboxes boot from per-agent template images, `docker/sandbox-templates:<agent>
 Two supported ways to customize:
 
 - **A template image** — a Dockerfile that starts `FROM docker/sandbox-templates:claude-code`, switches to `root` for `apt-get`, then **back to the `agent` user** for user-level tools (or they land in `/root/` where the agent can't use them). Run with `sbx run --template <your-image> claude`; keep the agent matched to the base variant you extended.
-- **Kits** — a declarative bundle (local dir, zip, `git+URL`, or OCI ref) of tools, env vars, files, network rules, and startup commands: `sbx run claude --kit <ref>`. Lighter-weight than a custom image for per-project needs.
+- **Kits** — a packaged, shareable environment: tools, config, agent instructions, network rules, credential requests, and startup commands. Better suited to sharing across a team than a custom image. See [Kits for teams](#kits-for-teams) below.
 
 If you add network rules via a template or kit, the same allowlist rules in this repo apply — review them like you'd review a PR against [`allowed-domains.txt`](../configs/docker-sandbox/allowed-domains.txt).
+
+### Kits for teams
+
+A **kit** packages what a sandbox needs for your team's work — linters and runtimes, an internal CLI, shared agent instructions, access to a private registry or internal API — so everyone starts from the same environment with one reference. The built-in `claude`/`codex` agents are themselves kits. Two roles:
+
+- A **workload** supplies the base environment and launch command: `sbx run <workload-ref> --name my-task`.
+- A **mixin** adds tools or config to a workload: `sbx run <workload-ref> --kit <mixin-ref>`. A **kit set** bundles a workload and its mixins into one reference.
+- Kits can expose settings: `--kit-arg name=value`. Values are plain text (shell history, sandbox state), so never secrets.
+
+**Private kits are the typical team case, and they're supported.** A kit is published as a container image, so it can live in any private OCI registry (GitHub Container Registry, an internal Artifactory/Nexus/Harbor, a private Docker Hub repo). For registries other than Docker Hub, store a pull credential; with no scope flag it's **host-only** — the `sbx` CLI uses it to pull kits and templates, and it never enters a sandbox. Use a pull-only token rather than a broad one. For GHCR that means a token with **only** `read:packages`; GitHub Packages still requires a classic token for this, which is the one exception to our [no-classic-tokens rule](git-credentials.md): it can only pull packages, and it stays on the host.
+
+```bash
+op read "op://Private/GHCR/token" | sbx secret set --registry ghcr.io --password-stdin
+sbx settings set kit.allowedSources '["docker.io/","ghcr.io/<your-org>/"]'   # replaces the whole list
+sbx run ghcr.io/<your-org>/team-kit:1.2.0 --name my-task
+```
+
+Kits can also come from a local directory or a Git reference (`git+https://…#ref=<commit>&dir=<subdir>`), but Docker doesn't document authentication for *private* Git kit sources, and Git sources can't be signed. For a private team kit, a private registry is the documented path.
+
+**Adopt a kit like a dependency.** It's code that runs in your sandbox and changes its policy:
+
+- **Its network rules bypass our allowlist** for that sandbox. Review what it adds (`sbx policy ls <sandbox> --source kit --type network --wide`); the [never-list](network-allowlists.md#never-allowlisted--and-why) still applies, and an org governance policy caps what kit rules can allow.
+- **Credential requests need your approval** — storing a secret doesn't let a third-party kit use it. Approve only for the hosts that need it.
+- **Pin versions** — an explicit tag (not `:latest`) or a Git `#ref=<commit>`.
+- **Restrict and verify sources.** `kit.allowedSources` (default: Docker Hub only) limits where kits can come from; `kit.allowLocalKits false` blocks local directories; `kit.trustedSigners` plus `kit.requireSignature true` rejects unsigned kits (off by default, and the default trusted signers are Docker employees, so set your own first). A signature covers the kit's spec and files, not image tags or anything its commands download. Built-in agent kits are exempt from the source and signature checks unless you set `kit.allowExtractedAgents false`.
+- **These are local settings**, changeable by the developer like any `sbx` setting — convenience, not enforcement. We haven't verified whether Docker's org governance can lock them.
+
+**Version gotcha:** the current (v3) kit format needs `sbx` 0.45+, and v3 kits can't mix with v1/v2 kits. The built-in `claude`/`codex` shortcuts use v2, so `sbx run claude --kit <v3-mixin>` fails — pick a v3 workload by reference instead. Authoring (descriptors, building with Buildx, signing) is in Docker's [kit docs](https://docs.docker.com/ai/sandboxes/customize/).
 
 ## Using it with an IDE (VS Code, JetBrains)
 

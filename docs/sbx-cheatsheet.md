@@ -84,6 +84,18 @@ Wildcards: `*.example.com` matches one subdomain level, `**.example.com` any dep
 
 Secret changes reach existing sandboxes without a restart. Inside the VM the agent only sees a placeholder. Anything passed with `-e` or `--env-file` is readable inside the VM, so never use them for secrets.
 
+## Kits (shared team environments)
+
+| Task | Command |
+|------|---------|
+| Pull credential for a private registry (host-only) | `op read "op://Private/GHCR/token" \| sbx secret set --registry ghcr.io --password-stdin` |
+| Allow your org's registry as a kit source | `sbx settings set kit.allowedSources '["docker.io/","ghcr.io/<your-org>/"]'` |
+| Run a team kit (pin the tag) | `sbx run ghcr.io/<your-org>/team-kit:1.2.0 --name my-task` |
+| Add a mixin | `sbx run <workload-ref> --kit <mixin-ref>` |
+| Review what network access it added | `sbx policy ls my-task --source kit --type network --wide` |
+
+Treat a kit like a dependency: its network rules bypass our allowlist for that sandbox. Built-in `claude`/`codex` can't take v3 mixins. [Details](docker-sandbox.md#kits-for-teams).
+
 ## The dashboard (TUI)
 
 Run `sbx` with no arguments (or `sbx tui`) for a terminal dashboard. Sandboxes appear as cards with live status, CPU, and memory.
