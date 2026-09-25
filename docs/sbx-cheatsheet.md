@@ -1,6 +1,6 @@
 # `sbx` Cheat Sheet
 
-A quick reference for working with Docker Sandboxes day to day. The reasoning, caveats, and security model live in the [full guide](docker-sandbox.md). Commands are checked against Docker's CLI reference for `sbx` 0.45; run `sbx <command> --help` if your version behaves differently.
+A quick reference for working with Docker Sandboxes day to day. The reasoning, caveats, and security model live in the [full guide](docker-sandbox.md). Commands were checked against Docker's `sbx` CLI reference as of **v0.45.1** (September 2026). If your installed version behaves differently, `sbx <command> --help` is authoritative. Check yours with `sbx version`.
 
 ## One-time setup
 
@@ -24,12 +24,14 @@ Then run the [isolation checks](docker-sandbox.md#verify-the-isolation-is-workin
 | Pass flags to the agent | `sbx run --name my-task claude -- --continue` |
 | Pick a model | `sbx run --clone claude -- --model <model>` |
 | Two sandboxes, one repo | give each its own `--name` |
-| Add a read-only extra workspace | `sbx run claude . ~/docs:ro` |
+| Add one specific extra path, read-only | `sbx run claude . ../api-schemas/openapi:ro` |
 | Size it | `sbx run -m 8g --cpus 4 …` |
 | List sandboxes | `sbx ls` |
 | Shell inside a sandbox | `sbx exec -it my-task bash` |
 | Copy files in or out | `sbx cp ./file my-task:/path/` · `sbx cp my-task:/path/file ./` |
 | Publish a port | `sbx ports my-task --publish 3000:8080` |
+
+**Extra paths:** everything you mount is readable by the agent and can end up in model context, logs, or a diff. Mount only the specific directory or file the task needs — never your home directory, `~/Documents`, or a broad parent folder like `~/code`.
 
 Agents: `claude`, `codex`, `copilot` (also `cursor`, `gemini`, `opencode`, `shell`, and others). Everything after `--` goes to the agent's own CLI. Leaving the agent doesn't delete anything: the sandbox keeps its state until you remove it.
 
