@@ -33,16 +33,15 @@ a home-mounted VM. Boot is sub-second, and resources are released on shutdown.
   TLS-terminating filter. **Default-deny egress is a core requirement here**
   ([principles](../README.md#principles)), so you'd have to layer it yourself —
   a filtering proxy in front of the guest, or a `vmnet`-level firewall — which
-  is exactly the hand-rolled work the [devcontainer](devcontainer.md) tier
-  already does and Docker Sandboxes does for you. Until that story is built in,
+  is exactly the work Docker Sandboxes does for you. Until that story is built in,
   `container` alone does not deliver the network posture this repo insists on.
 - **Very recent macOS only.** Full functionality (including container-to-container
   networking via `vmnet`) needs **macOS 26 (Tahoe)** on Apple silicon. It
   installs on macOS 15 but core features are gated to 26, and the project
   doesn't track issues on older releases.
-- **Linux workloads, like the other container tiers.** The agent runs inside
+- **Linux workloads, like Docker Sandboxes.** The agent runs inside
   Linux (Ubuntu/Debian/Alpine images), not native macOS — same operating model
-  as the devcontainer and Docker Sandboxes tiers, not the native Seatbelt tiers.
+  as the Docker Sandboxes tier, not the native Seatbelt tiers.
 - **Security isolation is still maturing.** Apple lists memory reclamation,
   security isolation, and image compatibility as areas with room to improve, and
   it is **not yet a built-in macOS system component**. Verify before you rely on

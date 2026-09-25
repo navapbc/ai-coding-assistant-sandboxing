@@ -2,18 +2,11 @@
 
 **If you can run Docker, start here.** Docker Sandboxes is the sandboxing option we recommend reaching for first — ahead of the built-in sandboxes shipped with Claude Code, Codex, and the other AI coding assistants. It runs each agent in a **microVM** (its own kernel, filesystem, and network — a harder boundary than the built-ins' host-level containment or container namespaces), and its built-in host proxy does **TLS-terminating, hostname-level egress filtering** with a default-deny preset. It's tool-agnostic — the same sandbox wraps Claude Code, Codex, and Copilot — so you get one strong boundary instead of a different, weaker one per tool. As with every tier in this repo: it raises the cost of an attack rather than removing it, and it comes with [caveats](#caveats-be-honest-in-the-compliance-record) you should read before relying on it.
 
-Why prefer it over the native built-ins? The built-in sandboxes are convenient because they ship with the tool, but they contain the agent within the *host* OS (a Seatbelt/namespace boundary sharing your kernel) and generally can't keep credentials out of the agent's reach. Docker Sandboxes gives you a genuinely stronger isolation boundary (microVM), true layer-7 egress control, and **keeps the credential out of the VM entirely** — for a few minutes of one-time setup. Reach for a tool's built-in sandbox only when Docker isn't available; see the [Tier 1 built-ins](enforcement.md) as the fallback path, and the [devcontainer](devcontainer.md) when you want whole-process containment without Docker.
+Why prefer it over the native built-ins? The built-in sandboxes are convenient because they ship with the tool, but they contain the agent within the *host* OS (a Seatbelt/namespace boundary sharing your kernel) and generally can't keep credentials out of the agent's reach. Docker Sandboxes gives you a genuinely stronger isolation boundary (microVM), true layer-7 egress control, and **keeps the credential out of the VM entirely** — for a few minutes of one-time setup. Reach for a tool's built-in sandbox only when Docker isn't available; see the [Tier 1 built-ins](enforcement.md) as the fallback path, and the [`srt` wrapper](universal-sandbox-srt.md) when you want one tool-agnostic boundary without Docker.
 
-## Why it's better than the devcontainer firewall
+## Credentials never enter the VM
 
-| Concern | Devcontainer (`init-firewall.sh`) | Docker Sandboxes (`sbx`) |
-|---------|-----------------------------------|--------------------------|
-| Egress filtering | IP-based: `dig` resolves domains to IPs at start → drifts on CDN rotation, over-permits broad ranges | **Hostname-level, TLS-terminating proxy** — genuine layer-7 filtering, no IP drift |
-| Isolation boundary | Container namespaces (shared host kernel) | **microVM** — own kernel, own daemon, own network |
-| Credential exposure | Token injected into the container env (agent can read it) | **Host proxy injects the auth header; the raw token never enters the VM** |
-| Maintenance | You maintain the firewall script + IP logic | Built-in; you maintain only the domain allowlist |
-
-The credential point is the standout: it resolves the [core constraint](network-allowlists.md#the-core-constraint-read-before-choosing-a-recipe) we documented for every other tier. Elsewhere, "anything `git` can read, the agent can read." Here the secret is stored in the host OS keychain and the proxy attaches it to outbound requests matching the right host — so a hijacked agent inside the VM has no token to exfiltrate. (Scope the credential anyway; see [caveats](#caveats-be-honest-in-the-compliance-record).)
+This is the standout: it resolves the [core constraint](network-allowlists.md#the-core-constraint-read-before-choosing-a-recipe) we documented for every other tier. Elsewhere, "anything `git` can read, the agent can read." Here the secret is stored in the host OS keychain and the proxy attaches it to outbound requests matching the right host — so a hijacked agent inside the VM has no token to exfiltrate. (Scope the credential anyway; see [caveats](#caveats-be-honest-in-the-compliance-record).)
 
 ## Getting started, step by step
 
@@ -99,7 +92,7 @@ The proxy listens on the host and is the only way out of the sandbox (it also bl
 - **balanced** — **default-deny with a baseline allowlist for AI-provider APIs** (our base)
 - **locked down** — all outbound blocked
 
-[`configs/docker-sandbox/apply-policy.sh`](../configs/docker-sandbox/apply-policy.sh) sets the default to `balanced` and then adds our allowlisted domains via the `sbx policy` CLI, reading the same [`allowed-domains.txt`](../configs/devcontainer/allowed-domains.txt) the devcontainer firewall uses (the shared list for the container-style tiers — see the [sync note](network-allowlists.md#keeping-the-allowlists-in-sync)). Rules accept exact hostnames, wildcard subdomains, an optional `:port`, and CIDR ranges; **deny always wins** over allow. The same never-allowlist rule applies — no cloud-provider storage domains ([why](network-allowlists.md#never-allowlisted--and-why)).
+[`configs/docker-sandbox/apply-policy.sh`](../configs/docker-sandbox/apply-policy.sh) sets the default to `balanced` and then adds our allowlisted domains via the `sbx policy` CLI, reading [`allowed-domains.txt`](../configs/docker-sandbox/allowed-domains.txt) next to it (kept in sync with the tool-level lists — see the [sync note](network-allowlists.md#keeping-the-allowlists-in-sync)). `github.com`/`api.github.com` aren't in that file because `balanced` already allows code hosts. Rules accept exact hostnames, wildcard subdomains, an optional `:port`, and CIDR ranges; **deny always wins** over allow. The same never-allowlist rule applies — no cloud-provider storage domains ([why](network-allowlists.md#never-allowlisted--and-why)).
 
 > **Note on the policy store.** We drive policy through the documented `sbx policy` CLI rather than a config file: as of this writing the on-disk format of the *local* policy store isn't documented, so a hand-authored file would be guesswork. The CLI is the supported, stable interface.
 
@@ -215,7 +208,7 @@ Two supported ways to customize:
 - **A template image** — a Dockerfile that starts `FROM docker/sandbox-templates:claude-code`, switches to `root` for `apt-get`, then **back to the `agent` user** for user-level tools (or they land in `/root/` where the agent can't use them). Run with `sbx run --template <your-image> claude`; keep the agent matched to the base variant you extended.
 - **Kits** — a declarative bundle (local dir, zip, `git+URL`, or OCI ref) of tools, env vars, files, network rules, and startup commands: `sbx run claude --kit <ref>`. Lighter-weight than a custom image for per-project needs.
 
-If you add network rules via a template or kit, the same allowlist rules in this repo apply — review them like you'd review a PR against [`allowed-domains.txt`](../configs/devcontainer/allowed-domains.txt).
+If you add network rules via a template or kit, the same allowlist rules in this repo apply — review them like you'd review a PR against [`allowed-domains.txt`](../configs/docker-sandbox/allowed-domains.txt).
 
 ## Using it with an IDE (VS Code, JetBrains)
 
@@ -223,7 +216,7 @@ Be aware of the gap: **there is no official IDE-attach integration** for `sbx` s
 
 - **Keep your IDE on the host; run the agent in the sandbox.** This is the workflow we actually recommend. In `--clone` mode, review the agent's output in your IDE via `git fetch sandbox-<name>` and diff it like a PR before merging. In direct-mount mode, edits appear in your IDE live (with the [trade-offs above](#clone-mode-vs-direct-mount-the-trade-offs)).
 - **code-server kit** — Docker's community kit repo ([docker/sbx-kits-contrib](https://github.com/docker/sbx-kits-contrib)) includes a kit that runs web-based VS Code *inside* the sandbox; you then publish its port to the host. Functional, but it's a community kit, not a supported IDE integration — evaluate it accordingly.
-- **If in-IDE agent + strong isolation is a hard requirement** (e.g. Copilot agent mode in JetBrains), the [devcontainer tier](devcontainer.md) remains the fit: full first-class IDE-in-container support in both VS Code and JetBrains, at the cost of a weaker boundary (container, not microVM) and IP-based egress filtering.
+- **If in-IDE agent + strong isolation is a hard requirement** (e.g. Copilot agent mode in JetBrains), this repo has **no sandboxed option** for it today. Use the tool's CLI in the sandbox instead (e.g. Copilot CLI), or disable IDE agent mode via org policy ([enforcement](enforcement.md)).
 
 ## Fleet enforcement requires the org governance tier
 

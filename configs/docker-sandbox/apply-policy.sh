@@ -2,16 +2,15 @@
 # apply-policy.sh — set Docker Sandboxes (sbx) egress to default-deny + our allowlist.
 #
 # Drives policy through the documented `sbx policy` CLI (the on-disk local policy
-# store format is undocumented, so we don't hand-author a file). Reads the same
-# allowed-domains.txt the devcontainer firewall uses (shared list for the
-# container-style tiers; tool-level configs keep their own copies — see
-# docs/network-allowlists.md "Keeping the allowlists in sync").
+# store format is undocumented, so we don't hand-author a file). Reads
+# allowed-domains.txt next to this script (tool-level configs keep their own
+# copies — see docs/network-allowlists.md "Keeping the allowlists in sync").
 #
 # Usage:
 #   apply-policy.sh [--sandbox NAME] [--domains FILE]
 #
 #   --sandbox NAME   scope the rules to one sandbox (default: global)
-#   --domains FILE   allowlist file (default: ../devcontainer/allowed-domains.txt)
+#   --domains FILE   allowlist file (default: ./allowed-domains.txt)
 #
 # Fleet note: rules set here are USER-LOCAL and developer-changeable. For
 # non-overridable enforcement, set an organization policy in the Docker Admin
@@ -19,7 +18,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOMAINS_FILE="${SCRIPT_DIR}/../devcontainer/allowed-domains.txt"
+DOMAINS_FILE="${SCRIPT_DIR}/allowed-domains.txt"
 SANDBOX_ARGS=()
 
 while [[ $# -gt 0 ]]; do

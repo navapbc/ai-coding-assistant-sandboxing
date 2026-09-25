@@ -44,7 +44,7 @@ Codex's newer **permission profiles** replace `sandbox_mode` (configure one syst
 
 ## Scope: what's covered
 
-Like Claude Code, Codex sandboxes **the commands it runs, not itself**: the CLI process and any MCP servers it spawns run with your user's privileges. Protected-path enforcement, workspace scoping, and the network switch apply to agent-executed shell commands and their children. For whole-process containment, use the [devcontainer](devcontainer.md).
+Like Claude Code, Codex sandboxes **the commands it runs, not itself**: the CLI process and any MCP servers it spawns run with your user's privileges. Protected-path enforcement, workspace scoping, and the network switch apply to agent-executed shell commands and their children. For whole-process containment, use [Docker Sandboxes](docker-sandbox.md).
 
 ## Environment variables (don't trust the defaults)
 

@@ -8,7 +8,7 @@ Tier 1 and 2 protect a developer who opts in. This tier makes opting out impossi
 |-------|------|--------------|------|
 | Managed (MDM) | per-tool paths below | Platform team | **Enforcement** — cannot be overridden |
 | User | `~/.claude/settings.json`, `~/.codex/config.toml`, `~/.copilot/config.json` | Developer | Personal baseline across all repos |
-| Project | `.claude/settings.json`, `.codex/config.toml`, `.devcontainer/` | Team via PR | Per-stack additions (registries), committed and reviewed |
+| Project | `.claude/settings.json`, `.codex/config.toml` | Team via PR | Per-stack additions (registries), committed and reviewed |
 | Local | `.claude/settings.local.json` | Developer | Scratch, not committed |
 
 A hybrid of all layers is the goal: the repo carries reviewed, project-appropriate defaults that work out of the box; the user file covers ad-hoc work outside managed repos; the managed file sets the floor developers can't override (as far as the tool honors it). Claude Code precedence: **managed > CLI args > local > project > user** — and for boolean keys the managed value simply wins, while array keys *merge* across scopes unless locked (below).
@@ -40,7 +40,7 @@ The shipped managed file uses the **strict** posture (`allowManagedDomainsOnly: 
 > [!WARNING]
 > **Don't relax to the standard posture (`allowManagedDomainsOnly: false`) for agent use.** Standard lets a project add domains via a reviewed one-line PR to its `.claude/settings.json` and turns an unlisted domain into a *prompt* instead of a hard block — convenient, but the prompt is a **human** approval step. In an auto-allowed (`autoAllowBashIfSandboxed: true` — our own baseline) or headless/agent session there is no one to answer it, and we have observed unlisted domains (e.g. `cms.gov`, `example.com`) reaching the network with **no prompt and no block** under standard posture. So standard is acceptable **only** where a human answers every egress prompt; for any unattended/agent/fleet use, keep the shipped strict default. Confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny).
 
-Whichever posture you run, make it a recorded decision rather than a drift, and re-run the egress check after deploying. **Note:** `allowManagedDomainsOnly` is honored *only* from managed settings — a solo developer using just `~/.claude/settings.json` cannot reach strict default-deny from user settings alone. Deploy this managed file (MDM, or `sudo` for a single machine — see below) or use the [devcontainer](devcontainer.md) / `srt` tier, which are unconditional default-deny regardless of posture.
+Whichever posture you run, make it a recorded decision rather than a drift, and re-run the egress check after deploying. **Note:** `allowManagedDomainsOnly` is honored *only* from managed settings — a solo developer using just `~/.claude/settings.json` cannot reach strict default-deny from user settings alone. Deploy this managed file (MDM, or `sudo` for a single machine — see below) or use [Docker Sandboxes](docker-sandbox.md) / `srt`, which are unconditional default-deny regardless of posture.
 
 ### Managed settings apply machine-wide
 
@@ -51,7 +51,7 @@ The collateral that surprises solo devs — and how to keep the hard egress whil
 - **Other repos hit the allowlist.** Every repo is now clamped to the managed `allowedDomains`. Fix: make the allowlist cover what your repos legitimately fetch — add domains to [`configs/allowed-domains.manifest.json`](../configs/allowed-domains.manifest.json) and the managed file (the manifest + `check-config-consistency.py` keep them in sync). The allowlist breadth is the maintenance cost of machine-wide strict; it does **not** require relaxing egress.
 - **Monorepo git breaks** (agent launched in a subdir, `.git` a level up). Fix per-repo: add the git root's `.git` to `sandbox.filesystem.allowWrite` in that repo's `.claude/settings.local.json`. Write-allow arrays **merge across scopes** (see the precedence note above), so this takes effect *even under* the machine-wide managed file — no egress change. See [agent-git.md](agent-git.md).
 
-If instead you want hard egress on **only some** repos (not the whole machine), don't use machine-wide managed at all — run those repos in the [devcontainer](devcontainer.md) / Docker Sandboxes / `srt`, which enforce default-deny egress **per project**, in-container, without governing the rest of your machine.
+If instead you want hard egress on **only some** repos (not the whole machine), don't use machine-wide managed at all — run those repos in [Docker Sandboxes](docker-sandbox.md) or under [`srt`](universal-sandbox-srt.md), which enforce default-deny egress **per session**, without governing the rest of your machine.
 
 ### Single machine (solo developer, no MDM)
 
@@ -104,12 +104,8 @@ Enforced: `danger-full-access` forbidden, approval policy `never` forbidden, web
 The youngest enforcement story — be honest about it in your compliance docs:
 
 - **IDE policy:** Copilot agent mode in the IDE can be disabled org-wide from the GitHub org **Policies** page (enterprise AI Controls override org). Use this to turn off agent mode on surfaces you can't sandbox — i.e., JetBrains — while leaving completions on.
-- **Local sandbox enforcement** ships via Microsoft Intune/MDM with the June 2026 public preview. Until your MDM supports it and it GA's, the enforceable options are the org-level IDE policy plus the devcontainer.
+- **Local sandbox enforcement** ships via Microsoft Intune/MDM with the June 2026 public preview. Until your MDM supports it and it GA's, the enforceable options are the org-level IDE policy plus running Copilot CLI in [Docker Sandboxes](docker-sandbox.md) under an org governance policy.
 - **VS Code:** `chat.agent.networkFilter` is an organization-managed setting for domain restriction; the terminal-sandbox setting itself is user-toggleable during preview.
-
-## Devcontainer image policy
-
-Bake enforcement into the image, not the instructions: the [Dockerfile](../configs/devcontainer/Dockerfile) copies `managed-settings.json` to `/etc/claude-code/` and `requirements.toml` to `/etc/codex/` inside the container, so even fully auto-approved agents inside the container operate under the same managed policy. Keep the Dockerfile and these policy files versioned in-repo so every rebuild reproduces the same enforced baseline.
 
 ## Measuring efficacy
 

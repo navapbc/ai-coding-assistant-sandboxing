@@ -40,7 +40,7 @@ Claude Code ships an OS-level Bash sandbox (Seatbelt on macOS) with a domain-fil
    ./setup.sh --managed      # sudo-installs configs/claude-code/managed-settings.json (strict egress)
    ```
 
-   This is the single-machine equivalent of an MDM push — the same policy, applied locally with `sudo`, and root-owned so a hijacked agent can't edit it back. Restart Claude Code and confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny) (`cms.gov` must fail). On a fleet, use MDM instead ([enforcement.md](enforcement.md#single-machine-solo-developer-no-mdm)). Prefer not to touch system files? The [devcontainer](devcontainer.md) / `srt` tiers are default-deny without managed settings.
+   This is the single-machine equivalent of an MDM push — the same policy, applied locally with `sudo`, and root-owned so a hijacked agent can't edit it back. Restart Claude Code and confirm with the [egress check](troubleshooting.md#verify-your-egress-is-actually-default-deny) (`cms.gov` must fail). On a fleet, use MDM instead ([enforcement.md](enforcement.md#single-machine-solo-developer-no-mdm)). Prefer not to touch system files? [Docker Sandboxes](docker-sandbox.md) and `srt` are default-deny without managed settings.
 
 ## What the baseline config does
 
@@ -68,11 +68,11 @@ Per-project additions (package registries, dev-server port binding) go in the re
 | Hooks | ❌ Run unsandboxed |
 | The Claude Code process itself | ❌ Outside the sandbox (it *operates* the sandbox) |
 
-If your project needs MCP servers or you want the whole process contained, use the [devcontainer](devcontainer.md).
+If your project needs MCP servers or you want the whole process contained, use [Docker Sandboxes](docker-sandbox.md).
 
 ## Known compatibility notes
 
-- `docker` can't run inside the sandbox. Don't add it to `excludedCommands` casually — that runs it **unsandboxed**. Prefer the ask-prompt fallback, or do container work in the devcontainer tier.
+- `docker` can't run inside the sandbox. Don't add it to `excludedCommands` casually — that runs it **unsandboxed**. Prefer the ask-prompt fallback, or do container work in [Docker Sandboxes](docker-sandbox.md), where each sandbox has its own Docker daemon.
 - `jest` hangs with watchman: use `jest --no-watchman`.
 - Go-based CLIs (`gh`, `terraform`) may fail TLS verification under Seatbelt in some setups — see [troubleshooting.md](troubleshooting.md) before reaching for `excludedCommands`.
 
